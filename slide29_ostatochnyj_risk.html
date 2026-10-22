@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Остаточный риск</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Shared look of the "Тема 1.1" deck: tokens, stage, cards, buttons, toast */
+:root{
+  --red:#FC3E24; --red-d:#E0321B; --red-bg:#FFF1EE; --red-line:#F6B2A6;
+  --ink:#16181D; --ink2:#4A4F5B; --muted:#7A808C;
+  --line:#E2E5EB; --soft:#F3F4F6; --radio:#C3C7CF;
+  --ok:#1E9E5A; --ok-bg:#E8F6EE; --warn:#E39A1B; --bad:#9AA0AA;
+  --mono:ui-monospace,'Cascadia Mono','JetBrains Mono',Consolas,monospace;
+  --shadow:0 6px 18px rgba(27,32,51,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  overflow:hidden;
+  background:linear-gradient(180deg,#E9ECF0 0%,#F6F6F8 35%,#FFFFFF 100%);
+  font-family:'Golos Text','TT Positive','Segoe UI',Roboto,Arial,sans-serif;
+  color:var(--ink);-webkit-tap-highlight-color:transparent;
+}
+body.port{overflow-x:hidden;overflow-y:auto}
+#fit{position:relative;width:100%;height:100%}
+body.port{background:#fff linear-gradient(180deg,#E9ECF0 0,#FFFFFF 700px) no-repeat}
+#stage{position:absolute;left:0;top:0;transform-origin:0 0;padding:58px 80px 0}
+#stage.port{padding:62px 30px 40px}
+.glass{position:absolute;left:0;top:0;width:1600px;height:900px;pointer-events:none;z-index:0;
+  opacity:0;animation:fade 1.2s ease .1s forwards}
+#stage.port .glass{width:900px;height:506px;opacity:.7}
+#stage > *:not(.glass){position:relative;z-index:1}
+.logo{position:absolute!important;right:77px;top:72px;width:68px;height:68px;border-radius:6px}
+#stage.port .logo{right:30px;top:60px;width:62px;height:62px}
+.title{margin:0;font-weight:700;font-size:74px;line-height:1;letter-spacing:-.03em;color:#000;white-space:nowrap;
+  opacity:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+#stage.port .title{font-size:52px;white-space:normal;max-width:740px}
+.sub{margin:44px 0 0;font-size:24px;line-height:1.35;color:var(--muted);opacity:0;animation:rise .6s ease .12s forwards}
+#stage.port .sub{margin-top:26px;font-size:24px}
+.num{position:absolute!important;right:77px;bottom:30px;font-size:15px;color:var(--muted)}
+#stage.port .num{bottom:14px;right:30px}
+.fs{position:absolute!important;right:118px;bottom:24px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;cursor:pointer;padding:0}
+#stage.port .fs{right:auto;left:30px;bottom:8px}
+.fs svg{width:17px;height:17px;stroke:var(--ink2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+.card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
+.ic{flex:none;display:grid;place-items:center;border-radius:14px;background:var(--red)}
+.ic svg{width:56%;height:56%;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--red)}
+#stage.port .eyebrow{font-size:16px}
+
+.btn{border:0;border-radius:12px;padding:14px 26px;background:var(--red);color:#fff;font-family:inherit;font-weight:600;font-size:17px;line-height:1.1;
+  cursor:pointer;transition:transform .15s,background .2s,box-shadow .2s;box-shadow:0 6px 16px rgba(252,62,36,.3)}
+.btn:hover{background:var(--red-d);transform:translateY(-1px)}
+.btn:disabled{background:#F0B3A9;box-shadow:none;cursor:default;transform:none}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.btn.ghost:hover{background:var(--soft)}
+#stage.port .btn{font-size:22px;padding:18px 26px}
+
+.anim-rise{opacity:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes fade{to{opacity:1}}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+@keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+.shake{animation:shake .45s}
+
+/* toast lives outside the stage, in real pixels */
+.toast{position:fixed;left:50%;top:18px;z-index:40;display:flex;gap:16px;align-items:center;width:min(92vw,640px);
+  padding:18px 24px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:0 24px 60px rgba(27,32,51,.22);
+  opacity:0;pointer-events:none;transform:translate(-50%,-20px) scale(.96);transition:opacity .35s,transform .45s cubic-bezier(.3,1.5,.5,1);
+  font-family:'Golos Text','Segoe UI',Roboto,Arial,sans-serif}
+.toast.show{opacity:1;pointer-events:auto;cursor:pointer;transform:translate(-50%,0)}
+.toast .em{font-size:clamp(30px,6vw,44px);line-height:1}
+.toast .tt{font-weight:700;font-size:clamp(20px,4vw,28px);letter-spacing:-.02em}
+.toast .ts{font-size:clamp(13px,2.6vw,15.5px);line-height:1.35;color:var(--ink2);margin-top:4px}
+.toast.win{border-color:#BFE6CF}.toast.win .tt{color:var(--ok)}
+.toast.lose{border-color:var(--red-line)}.toast.lose .tt{color:var(--red-d)}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+
+@media (prefers-reduced-motion:reduce){
+  .title,.sub,.anim-rise,.glass{animation-duration:.01s!important;animation-delay:0s!important}
+}
+
+</style>
+<style>
+.sub{margin-top:30px}
+.wrap{display:grid;grid-template-columns:560px 1fr;gap:36px;margin-top:30px}
+#stage.port .wrap{grid-template-columns:1fr;gap:24px;margin-top:26px}
+.rows{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;align-items:center;gap:20px;padding:0 22px;height:118px;cursor:pointer;text-align:left;font-family:inherit;width:100%;
+  transition:border-color .25s,background .25s,transform .2s,box-shadow .25s}
+.row:hover{transform:translateX(4px);border-color:var(--red-line)}
+.row.on{border:1.5px solid var(--red);background:var(--red-bg)}
+.row .ic{width:64px;height:64px}
+.row .tx{flex:1;min-width:0}
+.row .rt{font-size:21px;font-weight:600;color:var(--ink)}
+.row.on .rt{color:var(--red-d)}
+.row .rq{font-size:15.5px;line-height:1.3;color:var(--ink2);margin-top:5px}
+.row .st{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);color:var(--muted)}
+.row .st svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.row .st.done{background:var(--ok);border-color:var(--ok);color:#fff;animation:pop .4s}
+.row .st.try{border-color:var(--warn);color:var(--warn)}
+#stage.port .row{height:auto;padding:20px 22px}
+#stage.port .row .rt{font-size:25px}#stage.port .row .rq{font-size:19px}
+#stage.port .row .ic{width:70px;height:70px}
+
+.panel{padding:26px 30px;height:600px;display:flex;flex-direction:column}
+#stage.port .panel{height:auto}
+.pin{display:flex;flex-direction:column;flex:1;animation:rise .45s ease}
+.pq{margin:8px 0 6px;font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.pc{margin:0;font-size:16px;line-height:1.4;color:var(--ink2)}
+.pc b{color:var(--ink);font-weight:600}
+.pi{margin:16px 0 10px;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#stage.port .pq{font-size:30px}#stage.port .pc{font-size:20px}#stage.port .pi{font-size:16px}
+
+.sc{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#stage.port .sc{grid-template-columns:1fr}
+.s{position:relative;text-align:left;font-family:inherit;border:1.5px solid var(--line);background:#fff;border-radius:14px;padding:14px 16px 14px 50px;cursor:pointer;
+  min-height:118px;transition:border-color .2s,background .2s,box-shadow .2s;opacity:0;animation:rise .45s ease forwards}
+.s:hover{border-color:var(--red-line)}
+.s::before{content:"";position:absolute;left:16px;top:16px;width:20px;height:20px;border-radius:6px;border:2px solid var(--radio);background:#fff;transition:all .2s}
+.s.sel{border-color:var(--red);background:var(--red-bg)}
+.s.sel::before{border-color:var(--red);background:var(--red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/14px no-repeat}
+.s .t{font-size:15.5px;line-height:1.35;color:var(--ink)}
+.s .t code{font-family:var(--mono);font-size:.92em}
+.s .e{display:none;margin-top:8px;font-size:13.5px;line-height:1.35;color:var(--ink2)}
+.s .stamp{display:none;position:absolute;right:10px;top:-11px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:700;letter-spacing:.05em;color:#fff;animation:pop .35s}
+.s.chk{cursor:default}
+.s.chk .e{display:block}
+.s.chk .stamp{display:block}
+.s.chk.rem .stamp{background:var(--red)}
+.s.chk.blk .stamp{background:var(--ok)}
+.s.chk.right{box-shadow:0 0 0 3px rgba(30,158,90,.18)}
+.s.chk.wrong{box-shadow:0 0 0 3px rgba(252,62,36,.25)}
+.s .mk{display:none;position:absolute;left:14px;bottom:12px;font-size:13px;font-weight:700}
+.s.chk .mk{display:block}
+.s.chk.right .mk{color:var(--ok)}.s.chk.wrong .mk{color:var(--red-d)}
+#stage.port .s{min-height:0;padding:18px 18px 18px 58px}
+#stage.port .s::before{width:24px;height:24px;left:18px;top:19px}
+#stage.port .s .t{font-size:20px}#stage.port .s .e{font-size:17px}#stage.port .s .mk{font-size:16px;left:16px}
+#stage.port .s .stamp{font-size:14px}
+
+.pf{display:flex;align-items:center;gap:16px;margin-top:auto;padding-top:16px}
+.pf .btn{white-space:nowrap;flex:none}
+.pf .msg{font-size:15.5px;line-height:1.35;color:var(--ink2)}
+#stage.port .pf{margin-top:18px;flex-wrap:wrap}#stage.port .pf .msg{font-size:19px}
+
+/* row 4: compare with slide 6 */
+.cmp{display:grid;gap:14px}
+.box{background:var(--soft);border-radius:14px;padding:14px 16px}
+.box .l{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:8px 14px;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink2);cursor:pointer;transition:all .2s}
+.chip:hover{border-color:var(--red-line)}
+.chip.on{border-color:var(--red);background:var(--red);color:#fff}
+.chip.static{cursor:default}
+.chip .lt{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;margin-right:6px}
+.chip.on .lt{background:#fff;color:var(--red)}
+.fb{font-size:16px;line-height:1.45;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;animation:rise .4s ease}
+.fb b{color:var(--red-d)}
+#stage.port .box .l{font-size:16px}#stage.port .chip{font-size:19px;padding:11px 16px}#stage.port .fb{font-size:19px}
+</style>
+</head>
+<body>
+<div id="fit"><div id="stage">
+  <h1 class="title">Опрос: остаточный риск</h1>
+  <img class="logo" src="data:image/png;base64,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" alt="">
+  <p class="sub">Выберите контроль и отметьте сценарии атаки, которые после него всё ещё возможны.</p>
+  <div class="wrap">
+    <div class="rows" id="rows"></div>
+    <div class="panel card anim-rise" style="animation-delay:.4s" id="panel"></div>
+  </div>
+  <div class="num">29</div>
+</div></div>
+
+<script>
+/* Shared runtime for deck slides: fit-to-frame, toast, confetti, fullscreen, storage, icons */
+window.Deck = (() => {
+  const fitEl = document.getElementById('fit');
+  const st = document.getElementById('stage');
+  const LW = 1600, LH = 900, PW = 900;
+  let mode = null;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function fit() {
+    const vw = innerWidth, vh = innerHeight;
+    const m = vw / vh < 0.82 ? 'port' : 'land';
+    if (m !== mode) {
+      mode = m;
+      st.classList.toggle('port', m === 'port');
+      document.body.classList.toggle('port', m === 'port');
+      document.dispatchEvent(new CustomEvent('deck:mode', {detail: m}));
+    }
+    if (m === 'land') {
+      st.style.width = LW + 'px'; st.style.height = LH + 'px';
+      const s = Math.min(vw / LW, vh / LH);
+      st.style.transform = `translate(${(vw - LW * s) / 2}px, ${(vh - LH * s) / 2}px) scale(${s})`;
+      fitEl.style.height = '100%';
+    } else {
+      st.style.width = PW + 'px'; st.style.height = 'auto';
+      const s = vw / PW;
+      st.style.transform = `scale(${s})`;
+      fitEl.style.height = Math.ceil(st.offsetHeight * s) + 'px';
+    }
+  }
+  addEventListener('resize', fit);
+  if (window.ResizeObserver) new ResizeObserver(() => { if (mode === 'port') fit(); }).observe(st);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+
+  // toast
+  const toastEl = document.createElement('div');
+  toastEl.className = 'toast';
+  toastEl.innerHTML = '<div class="em"></div><div><div class="tt"></div><div class="ts"></div></div>';
+  document.body.appendChild(toastEl);
+  toastEl.addEventListener('click', () => toastEl.classList.remove('show'));
+  let tt = null;
+  function toast(kind, em, title, text, ms = 6500) {
+    toastEl.className = 'toast ' + kind;
+    toastEl.querySelector('.em').textContent = em;
+    toastEl.querySelector('.tt').textContent = title;
+    toastEl.querySelector('.ts').textContent = text;
+    requestAnimationFrame(() => toastEl.classList.add('show'));
+    clearTimeout(tt); tt = setTimeout(() => toastEl.classList.remove('show'), ms);
+    if (kind === 'win') confetti();
+  }
+  function hideToast() { toastEl.classList.remove('show'); }
+
+  // confetti
+  const cv = document.createElement('canvas'); cv.id = 'confetti'; document.body.appendChild(cv);
+  function confetti() {
+    if (reduced) return;
+    const ctx = cv.getContext('2d'), dpr = devicePixelRatio || 1;
+    cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cols = ['#FC3E24', '#16181D', '#FFB4A6', '#1E9E5A', '#C3C7CF', '#FFD166'];
+    const ps = Array.from({length: 160}, () => ({
+      x: innerWidth / 2 + (Math.random() - .5) * innerWidth * .3, y: innerHeight * .2,
+      vx: (Math.random() - .5) * 14, vy: -Math.random() * 12 - 4,
+      w: 6 + Math.random() * 7, h: 8 + Math.random() * 10, r: Math.random() * 6, vr: (Math.random() - .5) * .35,
+      c: cols[(Math.random() * cols.length) | 0]
+    }));
+    const t0 = performance.now();
+    const frame = (now) => {
+      const el = now - t0;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      ps.forEach(p => {
+        p.vy += .32; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+        ctx.globalAlpha = Math.max(0, 1 - el / 2600);
+        ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)));
+        ctx.restore();
+      });
+      if (el < 2600) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+    };
+    requestAnimationFrame(frame);
+  }
+
+  // fullscreen button (falls back to a new tab where the Fullscreen API is missing, e.g. iPhone)
+  const fsBtn = document.createElement('button');
+  fsBtn.className = 'fs'; fsBtn.title = 'На весь экран';
+  fsBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+  st.appendChild(fsBtn);
+  fsBtn.addEventListener('click', () => {
+    const d = document.documentElement;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (d.requestFullscreen && document.fullscreenEnabled) d.requestFullscreen().catch(() => open(location.href, '_blank'));
+    else open(location.href, '_blank');
+  });
+
+  // storage shared by all slides on this origin (slide 29 reads slide 6)
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem('t11.' + k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem('t11.' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  const IC = {
+    file:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8"/>',
+    workflow:'<rect x="3" y="3" width="8" height="8" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
+    bot:'<path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>',
+    db:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+    draft:'<path d="M12.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v9.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M13.38 15.62a1 1 0 0 0-3-3L5 18l-1 4 4-1Z"/>',
+    mailc:'<path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="m16 19 2 2 4-4"/>',
+    undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+    shieldc:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+    flask:'<path d="M10 2v7.53a2 2 0 0 1-.21.9L4.72 20.55A1 1 0 0 0 5.62 22h12.76a1 1 0 0 0 .9-1.45l-5.07-10.12a2 2 0 0 1-.21-.9V2M8.5 2h7M7 16h10"/>',
+    check:'<path d="M20 6 9 17l-5-5"/>',
+    x:'<path d="M18 6 6 18M6 6l12 12"/>',
+    copy:'<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'
+  };
+  const svg = (k, cls) => `<svg viewBox="0 0 24 24"${cls ? ` class="${cls}"` : ''}>${IC[k]}</svg>`;
+
+  // entrance animations leave opacity:0 as the base state, so drop the class once played;
+  // otherwise a later animation (shake) would replace it and hide the element
+  document.addEventListener('animationend', (e) => {
+    const t = e.target;
+    if (e.animationName === 'rise' && t.classList.contains('anim-rise')) { t.classList.remove('anim-rise'); t.style.animationDelay = ''; }
+    if (e.animationName === 'shake') t.classList.remove('shake');
+  });
+  function shake(el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+
+  requestAnimationFrame(fit);
+  return {fit, shake, toast, hideToast, confetti, store, svg, reduced, get mode() { return mode; }};
+})();
+
+</script>
+<script>
+(() => {
+const C = [
+  {id:'crm', ic:'db', t:'Ограничение CRM', q:'Какие данные всё ещё доступны агенту?',
+   c:'<b>Что включили:</b> исполнитель CRM отдаёт только объекты клиента C-17 из обращения T-104.',
+   s:[
+     {t:'<code>read_report(scope="all")</code> возвращает данные клиентов C-18 и C-19', r:false,
+      e:'Именно это контроль и закрывает: запрос чужих объектов получает отказ.'},
+     {t:'Внутренние заметки и скоринг самого C-17 попадают в ответ', r:true,
+      e:'Данные текущего клиента тоже чувствительны, а читать их агенту разрешено.'},
+     {t:'Внутренние статьи базы знаний уходят в письмо', r:true,
+      e:'База знаний не входит в область ограничения CRM.'},
+     {t:'Письмо уходит на адрес, указанный во вложении', r:true,
+      e:'Адресат не проверяется: канал вывода по-прежнему открыт.'}
+   ]},
+  {id:'draft', ic:'draft', t:'Режим черновика', q:'Кто увидит и сможет отправить подготовленный текст?',
+   c:'<b>Что включили:</b> агент только готовит черновик, отправляет человек-оператор.',
+   s:[
+     {t:'Агент сам вызывает <code>send_email</code> на адрес из вложения', r:false,
+      e:'Прямого права отправки больше нет: этот переход закрыт.'},
+     {t:'Оператор не глядя отправляет черновик с чужими данными', r:true,
+      e:'Человек становится каналом вывода, если подтверждает без проверки точных данных.'},
+     {t:'Агент читает отчёт CRM сразу по всем клиентам', r:true,
+      e:'Чтение никто не ограничивал: чужие данные уже лежат в черновике.'},
+     {t:'Черновик с чужими данными сохраняется в истории обращения', r:true,
+      e:'Текст увидит любой, у кого есть доступ к обращению.'}
+   ]},
+  {id:'rcpt', ic:'mailc', t:'Проверка получателя', q:'Какие ещё каналы вывода существуют?',
+   c:'<b>Что включили:</b> адресат письма должен совпадать с контактом клиента из T-104.',
+   s:[
+     {t:'<code>send_email</code> на report@partner-mail.io', r:false,
+      e:'Адрес не совпадает с контактом C-17: отправка отклонена.'},
+     {t:'Отчёт CRM уходит на законный адрес клиента, а клиент и есть атакующий', r:true,
+      e:'Атакующий сам создал обращение, и проверка адресата его пропустит.'},
+     {t:'Данные уходят в комментарий к обращению или во внешний веб-запрос', r:true,
+      e:'Другие каналы вывода проверка письма не охватывает.'},
+     {t:'Копия письма (cc) на адрес из вложения', r:false,
+      e:'Закрыто, если проверка охватывает всех получателей, включая cc и bcc. Это стоит проверить отдельно.'}
+   ]}
+];
+const ROW4 = {id:'back', ic:'undo', t:'Возврат к первому опросу', q:'Как изменился ваш выбор места контроля?'};
+const LET = {A:'Чтение вложения', B:'Запрос в CRM', C:'Выбор получателя', D:'Отправка'};
+const VERD = {A:'warn', B:'ok', C:'ok', D:'ok', E:'bad', F:'off', G:'bad'};
+
+const solved = {}, tried = {};
+const sel = {};       // per control: Set of selected scenario indexes
+let cur = null;
+const rowsEl = document.getElementById('rows'), panel = document.getElementById('panel');
+
+[...C, ROW4].forEach((r, i) => {
+  const b = document.createElement('button');
+  b.className = 'row card anim-rise'; b.style.animationDelay = (.2 + i * .09) + 's'; b.dataset.id = r.id;
+  b.innerHTML = `<div class="ic">${Deck.svg(r.ic)}</div><div class="tx"><div class="rt">${r.t}</div><div class="rq">${r.q}</div></div>
+    <div class="st"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></div>`;
+  b.addEventListener('click', () => open(r.id, true));
+  rowsEl.appendChild(b);
+});
+
+function markRow(id) {
+  const st = rowsEl.querySelector(`[data-id="${id}"] .st`);
+  st.className = 'st' + (solved[id] ? ' done' : tried[id] ? ' try' : '');
+  if (solved[id]) st.innerHTML = Deck.svg('check');
+}
+
+function open(id, user) {
+  cur = id;
+  rowsEl.querySelectorAll('.row').forEach(r => r.classList.toggle('on', r.dataset.id === id));
+  if (id === 'back') renderBack(); else renderControl(C.find(c => c.id === id));
+  if (user && Deck.mode === 'port') panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function renderControl(c) {
+  sel[c.id] = sel[c.id] || new Set();
+  panel.innerHTML = `<div class="pin">
+    <div class="eyebrow">${c.t}</div>
+    <div class="pq">${c.q}</div>
+    <p class="pc">${c.c}</p>
+    <div class="pi">Отметьте сценарии, которые всё ещё возможны</div>
+    <div class="sc">${c.s.map((s, i) => `<button class="s${sel[c.id].has(i) ? ' sel' : ''}" data-i="${i}" style="animation-delay:${.05 + i * .07}s">
+      <span class="stamp">${s.r ? 'ВОЗМОЖЕН' : 'ЗАКРЫТ'}</span><div class="t">${s.t}</div><div class="e">${s.e}</div><span class="mk"></span></button>`).join('')}</div>
+    <div class="pf"><button class="btn" id="chk">Проверить</button><span class="msg" id="msg">Отмечено: ${sel[c.id].size}</span></div>
+  </div>`;
+  panel.querySelectorAll('.s').forEach(el => el.addEventListener('click', () => {
+    if (el.classList.contains('chk')) return;
+    const i = +el.dataset.i;
+    sel[c.id].has(i) ? sel[c.id].delete(i) : sel[c.id].add(i);
+    el.classList.toggle('sel', sel[c.id].has(i));
+    document.getElementById('msg').textContent = `Отмечено: ${sel[c.id].size}`;
+  }));
+  document.getElementById('chk').addEventListener('click', () => check(c));
+  if (solved[c.id]) check(c, true);
+}
+
+function check(c, silent) {
+  if(!silent && window.TrainingAPI) window.TrainingAPI.submit('s29',c.id,{selectedIndexes:[...sel[c.id]].sort((a,b)=>a-b)});
+  const cards = [...panel.querySelectorAll('.s')];
+  let right = 0;
+  cards.forEach((el, i) => {
+    const s = c.s[i], mine = sel[c.id].has(i), ok = mine === s.r;
+    el.classList.add('chk', s.r ? 'rem' : 'blk', ok ? 'right' : 'wrong');
+    el.querySelector('.mk').textContent = ok ? '✓' : '✗';
+    if (ok) right++; else if (!silent) Deck.shake(el);
+  });
+  const btn = document.getElementById('chk'), msg = document.getElementById('msg');
+  const remains = c.s.filter(s => s.r).length;
+  if (right === c.s.length) {
+    solved[c.id] = true;
+    btn.style.display = 'none';
+    msg.innerHTML = `Верно 4 из 4. После контроля остаётся <b style="color:var(--red-d)">${remains} сценария</b>: ни один контроль не закрывает всё.`;
+    if (!silent) {
+      const n = C.filter(x => solved[x.id]).length;
+      if (n === C.length) Deck.toast('win', '🏆', 'Красавчик в кубе!', 'Все три контроля разобраны. Теперь вернитесь к первому опросу: изменился ли выбор?');
+      else Deck.toast('win', '🔥', 'Красавчик!', `Остаточный риск для «${c.t}» найден верно. Разобрано ${n} из ${C.length}.`);
+    }
+  } else {
+    tried[c.id] = true;
+    const nb = btn.cloneNode(true); nb.textContent = 'Попробовать снова';
+    btn.replaceWith(nb); nb.addEventListener('click', () => renderControl(c));
+    msg.textContent = `Верно ${right} из 4. Красная рамка: ответ не совпал. Прочитайте пояснения и попробуйте снова.`;
+  }
+  markRow(c.id);
+}
+
+/* ---- row 4: slide 6 answers vs now ---- */
+const s6 = Deck.store.get('s06');
+let before = Deck.store.get('s29.before') || null, now = null;
+function renderBack() {
+  const placed = s6 && s6.placed && s6.placed.length ? s6.placed : null;
+  panel.innerHTML = `<div class="pin">
+    <div class="eyebrow">${ROW4.t}</div>
+    <div class="pq">${ROW4.q}</div>
+    <p class="pc">На слайде 6 вы выбирали место контроля до разбора атаки. Сравните с тем, что знаете сейчас.</p>
+    <div class="cmp" style="margin-top:16px">
+      <div class="box"><div class="l">${placed ? 'На слайде 6 вы поставили щиты' : 'Что вы выбрали на слайде 6?'}</div>
+        <div class="chips" id="bef">${placed
+          ? placed.map(k => `<span class="chip static on"><span class="lt">${k}</span>${LET[k] || 'ловушка ' + k}</span>`).join('')
+          : Object.keys(LET).map(k => `<button class="chip${before === k ? ' on' : ''}" data-k="${k}"><span class="lt">${k}</span>${LET[k]}</button>`).join('')}</div></div>
+      <div class="box"><div class="l">Где теперь главная точка контроля?</div>
+        <div class="chips" id="nw">${Object.keys(LET).map(k => `<button class="chip" data-k="${k}"><span class="lt">${k}</span>${LET[k]}</button>`).join('')}
+          <button class="chip" data-k="L"><span class="lt">+</span>Несколько слоёв</button></div></div>
+      <div id="fb"></div>
+    </div></div>`;
+  panel.querySelectorAll('#bef button').forEach(b => b.addEventListener('click', () => {
+    before = b.dataset.k; Deck.store.set('s29.before', before);
+    panel.querySelectorAll('#bef button').forEach(x => x.classList.toggle('on', x === b));
+    if (now) feedback(placed);
+  }));
+  panel.querySelectorAll('#nw button').forEach(b => b.addEventListener('click', () => {
+    now = b.dataset.k;
+    if(window.TrainingAPI) {
+      const firstS6=window.TrainingAPI.first('s06','main');
+      const firstPlaced=firstS6?.answer?.placed||null;
+      window.TrainingAPI.submit('s29','back',{beforeSource:firstPlaced?'slide06':'manual',beforePlaced:firstPlaced,beforeSingle:firstPlaced?null:before,now});
+    }
+    panel.querySelectorAll('#nw button').forEach(x => x.classList.toggle('on', x === b));
+    feedback(placed);
+  }));
+}
+function feedback(placed) {
+  const T = {
+    A:'<b>A</b> только снижает вероятность: модель всё ещё может последовать тексту. Нужен контроль, который проверяет конкретный вызов.',
+    B:'<b>B</b> закрывает чужие данные, но остаются данные самого C-17, база знаний и адрес из вложения. Чем вы перекроете их?',
+    C:'<b>C</b> закрывает внешний адрес, но не атакующего-клиента и не другие каналы вывода.',
+    D:'<b>D</b> проверяет действие перед отправкой, но человек может подтвердить не глядя, а чужие данные уже прочитаны.',
+    L:'<b>Несколько слоёв.</b> У каждого контроля свой остаточный риск, и слои перекрывают риски друг друга: B ограничивает чтение, C и D закрывают канал вывода.'
+  };
+  const was = placed ? placed.join(', ') : before;
+  let lead = '';
+  if (was) {
+    const same = placed ? (placed.length === 1 && placed[0] === now) : before === now;
+    lead = same ? 'Выбор не изменился. ' : `Было: ${was}. Стало: ${now === 'L' ? 'несколько слоёв' : now}. `;
+  }
+  document.getElementById('fb').innerHTML = `<div class="fb">${lead}${T[now]}</div>`;
+  Deck.fit();
+  if (now === 'L') { solved.back = true; markRow('back'); Deck.toast('win', '🛡', 'Красавчик!', 'Универсальной защиты нет. Слои перекрывают остаточные риски друг друга.'); }
+}
+
+open('crm', false);
+})();
+</script>
+<script src="./training-api.js"></script>
+</body>
+</html>
