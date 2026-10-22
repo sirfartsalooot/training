@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Результаты: Место контроля</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Экраны результатов: фиксированная сцена 1600×900 (16:9), масштабируется под iframe целиком.
+   Вся вёрстка рассчитана на эту сцену, поэтому при любом размере окна ничего не обрезается и не прокручивается. */
+:root{
+  --red:#FC3E24; --red-d:#E0321B; --red-bg:#FFF1EE;
+  --ink:#16181D; --ink2:#4A4F5B; --muted:#7A808C;
+  --line:#E2E5EB; --track:#EEF0F3;
+  --ok:#1E9E5A; --rest:#5B616D;
+  --shadow:0 6px 18px rgba(27,32,51,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{
+  background:linear-gradient(180deg,#E9ECF0 0%,#F6F6F8 35%,#FFFFFF 100%);
+  font-family:'Golos Text','Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+#stage{
+  position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;overflow:hidden;
+  display:grid;grid-template-columns:500px 1fr;grid-template-rows:auto minmax(0,1fr) auto;
+  column-gap:32px;row-gap:28px;padding:56px 80px 52px;
+  visibility:hidden;
+}
+#stage.ready{visibility:visible}
+
+/* шапка */
+.top{grid-column:1/-1;display:flex;align-items:flex-start;gap:28px;min-width:0}
+.top > div:first-child{flex:1;min-width:0}
+.kicker{margin:0 0 14px;font-size:20px;font-weight:500;color:var(--muted)}
+h1{margin:0;font-size:64px;line-height:1.1;font-weight:700;letter-spacing:-.03em;color:#000;white-space:nowrap}
+.logo{width:68px;height:68px;border-radius:6px;flex:none}
+.live{flex:none;display:flex;align-items:center;gap:10px;margin-top:22px;padding:9px 16px;border-radius:99px;
+  background:#fff;border:1px solid var(--line);font-size:16px;color:var(--ink2);white-space:nowrap}
+.live i{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.live.ok i{background:var(--ok);box-shadow:0 0 0 4px rgba(30,158,90,.15)}
+.live.bad i{background:var(--red)}
+.live.bad{color:var(--red-d)}
+
+/* зона 1: главный результат */
+.hero{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);
+  padding:44px 44px 40px;display:flex;flex-direction:column;justify-content:center;min-height:0;overflow:hidden}
+.hero .num{font-size:196px;line-height:.9;font-weight:700;letter-spacing:-.055em;color:var(--red);
+  font-variant-numeric:tabular-nums;margin-left:-8px}
+.hero .num.wait{color:#C9CDD4}
+.hero .lbl{margin-top:26px;font-size:32px;line-height:1.18;font-weight:600;letter-spacing:-.01em;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.hero .sub{margin-top:16px;font-size:20px;line-height:1.35;color:var(--muted)}
+
+/* зона 2: предпочтения аудитории */
+.chart{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);
+  padding:36px 44px 34px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.chart h2{margin:0;font-size:28px;line-height:1.15;font-weight:600;letter-spacing:-.01em}
+.chart .note{margin:8px 0 0;font-size:17px;line-height:1.35;color:var(--muted)}
+.rows{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;margin-top:14px}
+.row{display:grid;grid-template-columns:360px minmax(0,1fr) 82px;align-items:center;column-gap:22px}
+.row .name{font-size:20px;line-height:1.2;font-weight:500;color:var(--ink);
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.row .name .tag{display:inline-block;margin-right:8px;padding:2px 9px;border-radius:7px;background:var(--track);
+  font-size:15px;font-weight:600;color:var(--ink2);vertical-align:2px}
+.row .bar{height:16px;border-radius:8px;background:var(--track);overflow:hidden}
+.row .bar b{display:block;height:100%;width:0;border-radius:8px;background:var(--rest);transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.row .val{font-size:26px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.row.lead .bar b{background:var(--red)}
+.row.lead .name{font-weight:600}
+.row.good .bar b{background:var(--ok)}
+.row.hard .bar b{background:var(--red)}
+.row.hard .name{font-weight:600}
+.row.empty .val{color:#C9CDD4}
+
+/* сравнение по сценариям (слайд 38): сценарий | контроль | проверка */
+.matrix{flex:1;min-height:0;display:grid;grid-template-columns:190px 1fr 1fr;grid-template-rows:auto repeat(3,1fr);
+  column-gap:28px;margin-top:18px}
+.matrix .colh{font-size:16px;font-weight:600;color:var(--muted);padding-bottom:10px;border-bottom:1px solid var(--line)}
+.matrix .scn,.matrix .cell{border-bottom:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;align-items:stretch;min-width:0;padding:10px 0}
+.matrix > :nth-last-child(-n+3){border-bottom:0}
+.matrix .scn{font-size:19px;font-weight:600;line-height:1.2}
+.matrix .cell .name{font-size:19px;line-height:1.2;font-weight:500;height:2.4em;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.matrix .cell .meter{display:grid;grid-template-columns:1fr 64px;align-items:center;column-gap:14px;margin-top:8px}
+.matrix .cell .bar{height:12px;border-radius:6px;background:var(--track);overflow:hidden}
+.matrix .cell .bar b{display:block;height:100%;width:0;border-radius:6px;background:var(--red);transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.matrix .cell .val{font-size:22px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.matrix .cell.empty .name,.matrix .cell.empty .val{color:#C9CDD4}
+
+/* зона 3: вывод для обсуждения */
+.takeaway{grid-column:1/-1;margin:0;padding:6px 0 6px 26px;border-left:6px solid var(--red);
+  font-size:30px;line-height:1.25;font-weight:600;letter-spacing:-.01em;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.takeaway q{quotes:"«" "»"}
+
+@media (prefers-reduced-motion:reduce){.bar b{transition:none}}
+
+/* Слайд 6: только рейтинг защищаемых контролей и вывод */
+body[data-slide="s06"] #stage{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+body[data-slide="s06"] .hero{display:none}
+body[data-slide="s06"] .chart{grid-column:1; padding:30px 48px}
+body[data-slide="s06"] .row{grid-template-columns:460px minmax(0,1fr) 95px}
+body[data-slide="s06"] .takeaway{grid-column:1}
+</style>
+</head>
+<body data-slide="s06">
+<div id="stage">
+  <header class="top">
+    <div>
+      <p class="kicker">Результаты аудитории, слайд 6</p>
+      <h1>Место контроля</h1>
+    </div>
+    <div class="live" id="live"><i></i><span>Подключение…</span></div>
+    <img class="logo" src="data:image/png;base64,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" alt="">
+  </header>
+  <section class="hero" id="hero" aria-live="polite"></section>
+  <section class="chart" id="chart"></section>
+  <p class="takeaway" id="takeaway"></p>
+</div>
+<script>
+/* Экраны результатов для слайдов 6, 11, 29 и 38.
+   Данные: Cloudflare Worker → D1, только агрегаты, обновление раз в 5 секунд.
+   Все подписи на экране берутся из словарей ниже (технический код → название из интерактива). */
+(() => {
+'use strict';
+
+const API = 'https://training-votes-api.skovaleva.workers.dev';
+const SESSION = 'training-001';
+const REFRESH_MS = 5000;
+
+/* Для локальной проверки страницу можно открыть с ?api=http://localhost:PORT.
+   Параметр работает только при открытии с localhost или из файла, на GitHub Pages он игнорируется. */
+const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const apiBase = (local && new URLSearchParams(location.search).get('api')) || API;
+
+const slide = document.body.dataset.slide;
+const $ = (id) => document.getElementById(id);
+
+/* ============ словари: технический код → подпись на экране ============ */
+
+// Слайд 6: точки A–G из slide06_mesto_kontrolya.html (SLOTS[k].n)
+const S06_CONTROLS = {
+  A: 'Маркировка происхождения',
+  B: 'Область чтения CRM',
+  C: 'Привязка адресата',
+  D: 'Проверка действия перед отправкой',
+  E: 'Запрет в системном промпте',
+  F: 'MFA для оператора',
+  G: 'Лимит шагов'
+};
+
+// Слайд 11: три системы, у каждой три вопроса; correct — верный ответ (значение, которое пишет интерактив)
+const S11_SYSTEMS = [
+  {id: 'v1', name: 'Ответ по документу', correct: {type: '1 вызов LLM', step: 'Код', auth: 'Инфраструктура'}},
+  {id: 'v2', name: 'Workflow',           correct: {type: 'Workflow',    step: 'Код', auth: 'Инфраструктура'}},
+  {id: 'v3', name: 'Агент',              correct: {type: 'Агент',       step: 'Модель', auth: 'Инфраструктура'}}
+];
+const S11_QUESTIONS = {type: 'тип системы', step: 'кто выбирает следующий шаг', auth: 'кто проверяет полномочия'};
+
+// Слайд 29: ситуации из slide29_ostatochnyj_risk.html (C[i].t); блок «back» не является ситуацией и не учитывается
+const S29_SITUATIONS = [
+  {id: 'crm',   name: 'Ограничение CRM'},
+  {id: 'draft', name: 'Режим черновика'},
+  {id: 'rcpt',  name: 'Проверка получателя'}
+];
+
+// Слайд 38: сценарии, варианты контроля (control:i) и проверки (test:i)
+const S38_SCENARIOS = [
+  {id: 'data_disclosure', name: 'Раскрытие данных',
+   controls: ['Запрет в системном промпте', 'Ограничение CRM: только C-17', 'Фильтр слова «отчёт»', 'Журналирование CRM'],
+   tests: ['Вежливый отказ модели', 'Нет C-18 в письме', 'read_customer(C-18) → отказ 403', '10 обычных обращений']},
+  {id: 'status_change', name: 'Изменение статуса',
+   controls: ['Промпт: только своё обращение', 'Подтверждение человеком', 'Лимит 20 шагов', 'set_status только для T-104'],
+   tests: ['set_status(T-105) → отказ', 'Спросить модель', 'Закрытие T-104', 'Нет слова «закрыто»']},
+  {id: 'resource_exhaustion', name: 'Расход ресурсов',
+   controls: ['Тайм-аут HTTP', 'Общий бюджет шагов и вызовов', 'Промпт «не зацикливайся»', 'Лимит со сбросом при повторе'],
+   tests: ['Ответ «выполнено»', 'Время обычного ответа', 'HTTP-тайм-аут', 'Цикл → STOP, без сброса']}
+];
+
+/* ============ утилиты ============ */
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const num = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
+const unit = (d, id) => (d.units && d.units[id]) || {participants: 0, passed: 0, options: {}};
+const opt = (u, key) => num(u.options && u.options[key]);
+const share = (v, den) => (den > 0 ? Math.min(1, v / den) : null);
+const pc = (p) => (p === null ? '—' : Math.round(p * 100) + '%');
+const q = (s) => `<q>${esc(s)}</q>`;
+// «из 21 участника», «из 5 участников»
+const ofPeople = (n) => `из ${n} ${n % 10 === 1 && n % 100 !== 11 ? 'участника' : 'участников'}`;
+// аудитория по слайду целиком; есть только после патча Worker (см. README)
+const audience = (d) => {
+  const a = d.audience;
+  return a && Number.isFinite(a.allPassed) && Number.isFinite(a.uniqueParticipants) ? a : null;
+};
+
+/* ============ представления по слайдам ============ */
+// Каждое возвращает {hero:{value,label,sub}, chart:{title,note,rows|groups}, takeaway}
+
+function view06(d) {
+  const u = unit(d, 'main'), t = num(u.participants);
+  const rows = Object.entries(S06_CONTROLS)
+    .map(([k, name]) => ({name, v: opt(u, 'shield:' + k)}))
+    .sort((a, b) => b.v - a.v)
+    .map((r, i) => ({name: r.name, p: share(r.v, t), cls: i === 0 && r.v > 0 ? 'lead' : ''}));
+  const top = rows.filter((r) => r.p !== null && r.p > 0 && r.p === rows[0].p);
+  let takeaway = 'Ждём первые ответы участников';
+  if (t > 0) takeaway = top.length === 0 ? 'Пока никто не поставил ни одного щита'
+    : top.length === 1 ? `Чаще всего аудитория защищает ${q(top[0].name)}: ${pc(top[0].p)} участников`
+    : `Чаще всего аудитория защищает ${top.slice(0, 2).map((r) => q(r.name)).join(' и ')}: по ${pc(top[0].p)}`;
+  return {
+    hero: {value: null, label: '', sub: ''},
+    chart: {title: 'Какие контроли защищали чаще всего',
+      note: 'Доля участников. Можно было поставить до трёх щитов, поэтому сумма больше 100%', rows},
+    takeaway
+  };
+}
+
+function view11(d) {
+  const u = unit(d, 'main'), t = num(u.participants);
+  const rows = S11_SYSTEMS.map((s) => {
+    const ok = Object.entries(s.correct).reduce((sum, [k, ans]) => sum + opt(u, `${s.id}.${k}:${ans}`), 0);
+    return {name: s.name, p: share(ok, 3 * t), cls: 'good'};
+  });
+  // самый трудный вопрос и самый частый неверный ответ в нём
+  let worst = null;
+  S11_SYSTEMS.forEach((s) => Object.entries(s.correct).forEach(([k, ans]) => {
+    const prefix = `${s.id}.${k}:`;
+    const wrong = Object.keys(u.options || {}).filter((o) => o.startsWith(prefix) && o !== prefix + ans)
+      .map((o) => ({ans: o.slice(prefix.length), v: opt(u, o)})).sort((a, b) => b.v - a.v)[0];
+    const right = opt(u, prefix + ans);
+    if (wrong && wrong.v > 0 && (!worst || right < worst.right || (right === worst.right && wrong.v > worst.wrong.v))) {
+      worst = {sys: s.name, qn: S11_QUESTIONS[k], right, wrong};
+    }
+  }));
+  if (t > 0) {
+    const min = Math.min(...rows.map((r) => r.p ?? 1));
+    rows.forEach((r) => { if (r.p !== null && r.p === min && min < 1) r.cls = 'hard'; });
+  }
+  let takeaway = 'Ждём первые ответы участников';
+  if (t > 0) takeaway = worst
+    ? `Чаще всего ошибались в вопросе ${q(worst.sys + ': ' + worst.qn)}: ${pc(share(worst.wrong.v, t))} ответили ${q(worst.wrong.ans)}`
+    : 'Ошибок нет: аудитория уверенно различает все три системы';
+  return {
+    hero: {value: share(num(u.passed), t), label: 'правильно разобрали все три системы', sub: t ? ofPeople(t) : 'Ответов пока нет'},
+    chart: {title: 'Верные ответы по системам', note: 'Доля верных ответов на три вопроса о каждой системе', rows},
+    takeaway
+  };
+}
+
+function view29(d) {
+  const a = audience(d);
+  const rows = S29_SITUATIONS.map((s) => {
+    const u = unit(d, s.id);
+    return {name: s.name, p: share(num(u.passed), num(u.participants)), cls: 'good'};
+  });
+  const known = rows.filter((r) => r.p !== null);
+  let takeaway = 'Ждём первые ответы участников';
+  if (known.length) {
+    const hard = known.reduce((m, r) => (r.p < m.p ? r : m));
+    const allSame = known.length > 1 && known.every((r) => r.p === hard.p);
+    if (allSame) takeaway = `Все ситуации даются одинаково: без ошибок разбирают ${pc(hard.p)}`;
+    else { hard.cls = 'hard'; takeaway = `Труднее всего оказалась ситуация ${q(hard.name)}: без ошибок справились ${pc(hard.p)}`; }
+  }
+  return {
+    hero: heroFromAudience(a, 'разобрали все три ситуации без ошибок'),
+    chart: {title: 'Разобрали ситуацию без ошибок', note: 'Доля участников, которые верно отметили все четыре сценария атаки', rows},
+    takeaway
+  };
+}
+
+function view38(d) {
+  const a = audience(d);
+  const groups = S38_SCENARIOS.map((s) => {
+    const u = unit(d, s.id), t = num(u.participants);
+    const leader = (list, key) => list.map((name, i) => ({name, v: opt(u, `${key}:${i}`)})).sort((x, y) => y.v - x.v)[0];
+    const c = leader(s.controls, 'control'), ts = leader(s.tests, 'test');
+    return {name: s.name, rate: share(num(u.passed), t), rows: [
+      {name: t && c.v ? c.name : 'Нет ответов', p: t ? share(c.v, t) : null, cls: t && c.v ? 'lead' : ''},
+      {name: t && ts.v ? ts.name : 'Нет ответов', p: t ? share(ts.v, t) : null, cls: t && ts.v ? 'lead' : ''}
+    ]};
+  });
+  const known = groups.filter((g) => g.rate !== null);
+  let takeaway = 'Ждём первые ответы участников';
+  if (known.length) {
+    const hard = known.reduce((m, g) => (g.rate < m.rate ? g : m));
+    takeaway = known.length > 1 && known.every((g) => g.rate === hard.rate)
+      ? `Все сценарии даются одинаково: справились ${pc(hard.rate)}`
+      : `Сложнее всего оказался сценарий ${q(hard.name)}: справились ${pc(hard.rate)}`;
+  }
+  return {
+    hero: heroFromAudience(a, 'справились со всеми тремя сценариями'),
+    chart: {title: 'Что выбирали чаще всего', note: 'Самый частый выбор в каждом сценарии, доля ответивших на этот сценарий', groups},
+    takeaway
+  };
+}
+
+function heroFromAudience(a, label) {
+  if (!a) return {value: null, label, sub: 'Общий итог появится после обновления сервера результатов'};
+  const t = num(a.uniqueParticipants);
+  return {value: share(num(a.allPassed), t), label, sub: t ? ofPeople(t) : 'Ответов пока нет'};
+}
+
+const VIEWS = {s06: view06, s11: view11, s29: view29, s38: view38};
+
+/* ============ отрисовка ============ */
+
+const rowHtml = (r) => `<div class="row ${r.cls || ''}${r.p === null ? ' empty' : ''}">
+  <div class="name">${r.tag ? `<span class="tag">${esc(r.tag)}</span>` : ''}${esc(r.name)}</div>
+  <div class="bar"><b style="width:${r.p === null ? 0 : Math.round(r.p * 100)}%"></b></div>
+  <div class="val">${pc(r.p)}</div></div>`;
+
+let chartKey = '';
+function render(v) {
+  $('hero').innerHTML = `<div class="num${v.hero.value === null ? ' wait' : ''}">${pc(v.hero.value)}</div>
+    <div class="lbl">${esc(v.hero.label)}</div><div class="sub">${esc(v.hero.sub)}</div>`;
+
+  const c = v.chart;
+  const cell = (r) => `<div class="cell row${r.p === null ? ' empty' : ''}"><div class="name">${esc(r.name)}</div>
+    <div class="meter"><div class="bar"><b style="width:${r.p === null ? 0 : Math.round(r.p * 100)}%"></b></div><div class="val">${pc(r.p)}</div></div></div>`;
+  const body = c.groups
+    ? `<div class="matrix rows"><div class="colh"></div><div class="colh">Контроль</div><div class="colh">Проверка</div>${
+        c.groups.map((g) => `<div class="scn">${esc(g.name)}</div>${g.rows.map(cell).join('')}`).join('')}</div>`
+    : `<div class="rows">${c.rows.map(rowHtml).join('')}</div>`;
+  const html = `<h2>${esc(c.title)}</h2><p class="note">${esc(c.note)}</p>${body}`;
+  // При обновлении меняем только ширину полос и подписи, чтобы полосы плавно двигались, а не перерисовывались
+  const key = html.replace(/style="width:\d+%"/g, '').replace(/>\d+%</g, '><');
+  const chart = $('chart');
+  if (key !== chartKey || !chart.querySelector('.rows')) {
+    chart.innerHTML = html.replace(/style="width:\d+%"/g, 'style="width:0%"');
+    chartKey = key;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const tmp = document.createElement('div'); tmp.innerHTML = html;
+      const src = tmp.querySelectorAll('.bar b');
+      chart.querySelectorAll('.bar b').forEach((b, i) => { b.style.width = src[i].style.width; });
+    }));
+  } else {
+    const tmp = document.createElement('div'); tmp.innerHTML = html;
+    const src = tmp.querySelectorAll('.row'), dst = chart.querySelectorAll('.row');
+    dst.forEach((row, i) => {
+      row.className = src[i].className;
+      row.querySelector('.bar b').style.width = src[i].querySelector('.bar b').style.width;
+      row.querySelector('.val').textContent = src[i].querySelector('.val').textContent;
+    });
+  }
+  $('takeaway').innerHTML = v.takeaway;
+  fitText();
+}
+
+// Если длинное название не помещается в отведённые строки, уменьшаем шрифт, а не обрезаем текст
+function fitText() {
+  const shrink = (el, min) => {
+    el.style.fontSize = '';
+    let fs = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollHeight > el.clientHeight + 1 && fs > min) { fs -= 1; el.style.fontSize = fs + 'px'; }
+  };
+  document.querySelectorAll('.row .name').forEach((el) => shrink(el, 14));
+  shrink($('takeaway'), 20);
+  shrink(document.querySelector('.hero .lbl'), 22);
+}
+
+function setLive(ok, text) {
+  const l = $('live');
+  l.className = 'live ' + (ok ? 'ok' : 'bad');
+  l.querySelector('span').textContent = text;
+}
+
+/* ============ масштаб сцены под iframe ============ */
+const stage = $('stage');
+function fit() {
+  const s = Math.min(innerWidth / 1600, innerHeight / 900);
+  stage.style.transform = `translate(${(innerWidth - 1600 * s) / 2}px, ${(innerHeight - 900 * s) / 2}px) scale(${s})`;
+}
+addEventListener('resize', fit);
+fit();
+
+/* ============ загрузка данных ============ */
+let hasData = false, busy = false;
+const EMPTY = {sessionId: SESSION, slideId: slide, totalResponses: 0, units: {}};
+
+async function refresh() {
+  if (busy) return;
+  busy = true;
+  try {
+    const url = `${apiBase}/api/results?sessionId=${encodeURIComponent(SESSION)}&slideId=${encodeURIComponent(slide)}`;
+    const r = await fetch(url, {cache: 'no-store'});
+    if (!r.ok) { let detail = ''; try { detail = JSON.stringify(await r.json()); } catch {} throw new Error('HTTP ' + r.status + ' ' + detail.slice(0,180)); }
+    const d = await r.json();
+    // защита от смешивания сессий и слайдов
+    if (!d || d.sessionId !== SESSION || d.slideId !== slide || !d.units || typeof d.units !== 'object') throw new Error('Некорректный ответ API: проверь sessionId и slideId');
+    render(VIEWS[slide](d));
+    hasData = true;
+    setLive(true, 'Обновлено в ' + new Date().toLocaleTimeString('ru-RU'));
+  } catch (e) {
+    console.error('[Results] Не удалось загрузить статистику:', e);
+    if (!hasData) render(VIEWS[slide](EMPTY));
+    setLive(false, hasData ? 'Нет связи, последние данные' : 'Ошибка подключения — см. консоль браузера');
+  } finally {
+    busy = false;
+  }
+}
+
+render(VIEWS[slide](EMPTY));
+stage.classList.add('ready');
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitText);
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+})();
+
+</script>
+</body>
+</html>
