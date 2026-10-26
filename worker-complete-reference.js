@@ -1,4 +1,4 @@
-const ALLOWED = {s06:['main'],s11:['main'],s29:['crm','draft','rcpt','back'],s38:['data_disclosure','status_change','resource_exhaustion']};
+const ALLOWED = {s06:['main'],s11:['main'],s29:['crm','draft','rcpt','back'],s38:['data_disclosure','status_change','resource_exhaustion'],s26:['main'],s42:['main'],s46:['main'],s47:['main'],s48:['main']};
 const EXPECTED11=[
  {type:'1 вызов LLM',step:'Код',auth:'Инфраструктура'},
  {type:'Workflow',step:'Код',auth:'Инфраструктура'},
@@ -51,6 +51,26 @@ function validate(slide,unit,a){
   const expected=EXPECTED38[unit];correct=Number(c===expected.control)+Number(t===expected.test);total=2;mistakes=2-correct;
   add('control',c,expected.control,c===expected.control);add('test',t,expected.test,t===expected.test);
   outcome=correct===2?'Passed':correct===0?'Failed':'Partial';
+ }else if(['s26','s42','s46','s47','s48'].includes(slide)){
+  // Canonical scoring remains server-side: browser-provided marks are never trusted.
+  const choices={s26:{answers:['yes','unknown','unknown'],witness:'service'},s42:{rule:'exact'},s46:{answers:['ASI01','ASI06','Недостаточно данных']},s47:{control:'scope',pair:'both'},s48:{risks:['kb','mail'],next:'egress'}};
+  const allowed={s26:{answers:['yes','no','unknown'],witness:['trace','tool','service']},s42:{rule:['task','recipient','exact']},s46:{answers:['ASI01','ASI06','ASI07','Недостаточно данных']},s47:{control:['prompt','scope','deny'],pair:['reply','negative','both']},s48:{risks:['other','kb','alias','mail'],next:['prompt','egress','crm']}};
+  const expected=choices[slide],possible=allowed[slide];correct=0;total=0;
+  function field(q,value,want,valid){if(!valid.includes(value))throw bad('Invalid choice '+q);const ok=value===want;correct+=Number(ok);total++;add(q,value,want,ok);}
+  if(slide==='s26'||slide==='s46'){
+   if(!Array.isArray(a.answers)||a.answers.length!==3)throw bad('Invalid answers');
+   a.answers.forEach((v,i)=>field('a'+i,v,expected.answers[i],possible.answers));
+   if(slide==='s26')field('witness',a.witness,expected.witness,possible.witness);
+  }else if(slide==='s42')field('rule',a.rule,expected.rule,possible.rule);
+  else if(slide==='s47'){
+   field('control',a.control,expected.control,possible.control);
+   field('pair',a.pair,expected.pair,possible.pair);
+  }else{
+   if(!Array.isArray(a.risks)||a.risks.length!==2||!unique(a.risks)||!a.risks.every(x=>possible.risks.includes(x)))throw bad('Invalid risks');
+   for(const v of possible.risks){const selected=a.risks.includes(v),want=expected.risks.includes(v);const ok=selected===want;correct+=Number(ok);total++;add('risk_'+v,selected,want,ok,'Boolean');}
+   field('next',a.next,expected.next,possible.next);
+  }
+  mistakes=total-correct;outcome=correct===total?'Passed':correct===0?'Failed':'Partial';
  }
  return {items,correct,total,outcome,mistakes};
 }
@@ -103,6 +123,7 @@ async function stats(env,url){
   if(slide==='s29'&&e.unit_id!=='back')for(const x of a.selectedIndexes)count('selected:'+x);
   if(slide==='s29'&&e.unit_id==='back')count('now:'+a.now);
   if(slide==='s38'){count('control:'+a.firstControlIndex);count('test:'+a.firstTestIndex);}
+  if(['s26','s42','s46','s47','s48'].includes(slide)){for(const [k,v] of Object.entries(a)){if(Array.isArray(v)){if(k==='answers')v.forEach((x,i)=>count('a'+i+':'+x));else v.forEach(x=>count(k+':'+x));}else count(k+':'+v);}}
   if(required&&required.includes(e.unit_id)){
    if(!perPerson.has(e.participant_key))perPerson.set(e.participant_key,new Map());
    const person=perPerson.get(e.participant_key);
@@ -118,7 +139,12 @@ async function stats(env,url){
   }
   audience={uniqueParticipants:perPerson.size,allCompleted,allPassed};
  }
- return {sessionId:sid,slideId:slide,totalResponses:entries.length,units,audience,updatedAt:new Date().toISOString()};
+ // Expose only group-level aggregates; no participant identities or raw answers.
+ const sessionTotalRow=await env.DB.prepare('SELECT COUNT(DISTINCT participant_key) AS n FROM participants WHERE session_id=?').bind(sid).first();
+ const sessionParticipants=Number(sessionTotalRow?.n||0);
+ const questionRows=(await env.DB.prepare(`SELECT ri.question_id AS questionId, COUNT(*) AS attempts, SUM(CASE WHEN ri.is_correct=0 THEN 1 ELSE 0 END) AS mistakes, SUM(CASE WHEN ri.is_correct=1 THEN 1 ELSE 0 END) AS correct FROM response_items ri JOIN responses r ON r.response_key=ri.response_key WHERE r.session_id=? AND r.slide_id=? AND r.unit_id='main' GROUP BY ri.question_id`).bind(sid,slide).all()).results;
+ const questions={};for(const row of questionRows){questions[row.questionId]={attempts:Number(row.attempts||0),mistakes:Number(row.mistakes||0),correct:Number(row.correct||0)};}
+ return {sessionId:sid,slideId:slide,totalResponses:entries.length,units,audience,sessionParticipants,questions,updatedAt:new Date().toISOString()};
 }
 async function syncTable(env,table,rows,fieldMapper,keyField){
  const token=env.AIRTABLE_TOKEN,base=env.AIRTABLE_BASE_ID;if(!token||!base||!rows.length)return;

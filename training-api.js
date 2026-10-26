@@ -9,7 +9,7 @@ const json=(k)=>{try{return JSON.parse(localStorage.getItem(STORE+k));}catch{ret
 const persist=(k,v)=>{try{localStorage.setItem(STORE+k,JSON.stringify(v));return true;}catch{return false;}};
 const uid=()=>typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():'p'+Date.now().toString(36)+Math.random().toString(36).slice(2);
 let participant=json('participant');if(!participant){participant=uid();persist('participant',participant);}
-const slides=['s06','s11','s29','s38'];
+const slides=['s06','s11','s29','s38','s26','s42','s46','s47','s48'];
 const badge=document.createElement('div');badge.id='training-api-status';badge.setAttribute('role','status');badge.setAttribute('aria-live','polite');
 badge.style.cssText='position:fixed;bottom:12px;left:12px;z-index:99999;max-width:290px;padding:7px 11px;background:rgba(22,24,29,.88);color:white;border-radius:8px;font:12px/1.35 Arial,sans-serif;pointer-events:none;box-shadow:0 2px 10px #0002';
 function report(msg,kind){badge.textContent=msg;badge.style.background=kind==='bad'?'rgba(170,45,31,.92)':kind==='ok'?'rgba(20,113,69,.88)':'rgba(22,24,29,.88)';}
