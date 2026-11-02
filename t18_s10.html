@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Где остановить атаку?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#FC3E24; --red-d:#E0321B; --red-bg:#FFF1EE; --red-line:#F6B2A6;
+  --ink:#16181D; --ink2:#4A4F5B; --muted:#7A808C;
+  --line:#E2E5EB; --soft:#F3F4F6; --radio:#C3C7CF;
+  --ok:#1E9E5A; --ok-bg:#E8F6EE; --ok-line:#BFE6CF;
+  --mono:ui-monospace,'Cascadia Mono','JetBrains Mono',Consolas,monospace;
+  --shadow:0 6px 18px rgba(27,32,51,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  background:linear-gradient(180deg,#E9ECF0 0%,#F6F6F8 35%,#FFFFFF 100%);
+  font-family:'Golos Text','TT Positive','Segoe UI',Roboto,Arial,sans-serif;
+  color:var(--ink);-webkit-tap-highlight-color:transparent;
+}
+button,textarea{font-family:inherit}
+button{cursor:pointer}
+button:focus-visible,textarea:focus-visible{outline:3px solid #2378c4;outline-offset:3px}
+h1,h2,h3,p{margin:0}
+code{font-family:var(--mono);font-size:.92em;overflow-wrap:anywhere}
+[hidden]{display:none!important}
+
+/* ---------- сцена 16:9 ---------- */
+#stage{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;padding:58px 80px 62px;
+  display:flex;flex-direction:column;overflow:hidden}
+.logo{position:absolute;right:77px;top:72px;width:68px;height:68px;border-radius:6px}
+.title{font-weight:700;font-size:74px;line-height:1;letter-spacing:-.03em;color:#000;white-space:nowrap;max-width:1060px;min-height:74px;
+  opacity:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+.sub{margin-top:26px;font-size:24px;line-height:1.35;color:var(--muted);max-width:1180px;opacity:0;animation:rise .6s ease .12s forwards}
+.has-strip .sub{max-width:1070px;font-size:22px}
+.fs{position:absolute;right:77px;bottom:18px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;padding:0;z-index:3}
+.fs svg{width:17px;height:17px;stroke:var(--ink2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- таймер ---------- */
+.timer{position:absolute;right:170px;top:84px;display:flex;align-items:center;gap:10px;height:46px;padding:0 8px 0 18px;
+  border-radius:99px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);opacity:0;animation:rise .6s ease .2s forwards}
+.timer .tm{font-weight:700;font-size:22px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;min-width:52px}
+.timer .tb{width:32px;height:32px;border-radius:50%;border:0;background:var(--soft);display:grid;place-items:center;padding:0}
+.timer .tb:hover{background:#E6E8EC}
+.timer .tb svg{width:15px;height:15px;stroke:var(--ink2);fill:var(--ink2);stroke-width:1.5;stroke-linejoin:round}
+.timer .pulse{width:9px;height:9px;border-radius:50%;background:var(--red);flex:none;animation:blink 1.6s ease-in-out infinite}
+.timer.paused .pulse{background:var(--radio);animation:none}
+.timer.over{border-color:var(--red-line);background:var(--red-bg)}
+.timer.over .tm{color:var(--red-d);font-size:17px}
+.timer.over .pulse{display:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* этапы итоговой карточки (s46–s48) */
+.step-strip{position:absolute;right:80px;top:162px;display:flex;gap:6px;opacity:0;animation:rise .6s ease .18s forwards}
+.step-strip span{padding:6px 12px;border-radius:99px;background:rgba(255,255,255,.75);border:1px solid var(--line);font-size:13.5px;font-weight:600;color:var(--muted)}
+.step-strip span.active{background:var(--red);border-color:var(--red);color:#fff}
+.step-strip span.done{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
+.step-strip span.active.done{background:var(--ok);border-color:var(--ok);color:#fff}
+
+/* ---------- область задания ---------- */
+.content{flex:1;min-height:0;margin-top:30px;position:relative}
+.content.intro-anim > *{opacity:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+.content.intro-anim > *:nth-child(1){animation-delay:.25s}
+.content.intro-anim > *:nth-child(2){animation-delay:.37s}
+.content.swap > *{animation:rise .45s cubic-bezier(.2,.8,.2,1)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:26px 28px}
+.panel h2{font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1.15;margin-bottom:14px}
+.panel p{font-size:17px;line-height:1.42;color:var(--ink2)}
+.panel.flat{padding:22px 28px}.panel.flat h2{margin-bottom:8px}
+.context{background:rgba(255,255,255,.88)}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--red);margin-bottom:8px}
+.workspace{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.25fr);gap:32px;align-items:start}
+.workspace.even{grid-template-columns:1fr 1fr}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;margin-top:22px}
+
+.fact{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:center;padding:9px 0;border-top:1px solid #F0F1F4;font-size:17px;line-height:1.35}
+.fact:first-of-type{border-top:0;padding-top:0}
+.fact .number{width:30px;height:30px;border-radius:50%;border:2px solid var(--red);color:var(--red);display:grid;place-items:center;font-weight:700;font-size:14px}
+.note{font-size:15.5px;line-height:1.42;color:var(--ink2);background:#F5F6F8;border-radius:12px;padding:12px 16px;margin-top:16px}
+.note strong{color:var(--ink);font-weight:600}
+.note.alert{background:var(--red-bg);color:var(--red-d)}
+.question + .question{margin-top:16px}
+.question-title{font-weight:600;font-size:18px;line-height:1.3;margin-bottom:9px;color:var(--ink)}
+.label{font-weight:600;font-size:18px;line-height:1.3;margin:18px 0 10px;color:var(--ink)}
+
+/* сегменты — как в slide11 */
+.seg{display:flex;gap:6px;background:var(--soft);border-radius:12px;padding:4px}
+.seg .option{flex:1 1 auto;white-space:nowrap;border:0;background:transparent;border-radius:9px;padding:11px 8px;font-size:15.5px;font-weight:600;color:var(--ink2);line-height:1.15;
+  transition:background .2s,color .2s,box-shadow .2s}
+.seg .option:hover{color:var(--ink);background:rgba(255,255,255,.6)}
+.seg .option[aria-pressed=true]{background:#fff;color:var(--red-d);box-shadow:0 2px 8px rgba(27,32,51,.12)}
+.seg .option.good{background:var(--ok);color:#fff;box-shadow:none}
+.seg .option.bad{background:var(--red);color:#fff;box-shadow:none}
+.mk{font-size:14px;font-weight:600;margin-left:8px}
+.mk.ok{color:var(--ok)}.mk.no{color:var(--red-d)}
+
+/* карточки выбора */
+.choice{display:flex;width:100%;gap:14px;text-align:left;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 18px;align-items:flex-start;
+  color:var(--ink);transition:border-color .2s,background .2s,transform .15s,box-shadow .2s}
+.choice + .choice{margin-top:10px}
+.choice:hover{border-color:var(--red-line);transform:translateY(-1px);box-shadow:0 8px 20px rgba(27,32,51,.08)}
+.choice .mark{width:24px;height:24px;flex:none;border:2px solid var(--radio);border-radius:50%;margin-top:1px;display:grid;place-items:center;
+  color:#fff;font-size:14px;font-weight:700;transition:all .2s}
+.choice.multi .mark{border-radius:7px}
+.choice strong{display:block;font-size:18px;font-weight:600;line-height:1.25;margin-bottom:3px}
+.choice .desc{display:block;font-size:15px;line-height:1.38;color:var(--ink2)}
+.choice[aria-pressed=true]{border-color:var(--red);background:var(--red-bg)}
+.choice[aria-pressed=true] .mark{border:7px solid var(--red);background:#fff}
+.choice.multi[aria-pressed=true] .mark{border:0;background:var(--red)}
+.choice.multi[aria-pressed=true] .mark::after{content:'✓'}
+.choice.good{border-color:var(--ok);background:var(--ok-bg)}
+.choice.good .mark,.choice.multi.good .mark{border:0;background:var(--ok)}
+.choice.good .mark::after{content:'✓'}
+.choice.bad{border-color:var(--red);background:var(--red-bg)}
+.choice.bad .mark,.choice.multi.bad .mark{border:0;background:var(--red)}
+.choice.bad .mark::after{content:'×';font-size:18px;line-height:1}
+
+/* кнопки — как в примерах */
+.row-actions{display:flex;gap:14px;align-items:center;margin-top:20px}
+.btn{border:0;border-radius:12px;padding:14px 24px;background:var(--red);color:#fff;font-weight:600;font-size:17px;line-height:1.1;white-space:nowrap;
+  transition:transform .15s,background .2s,box-shadow .2s;box-shadow:0 6px 16px rgba(252,62,36,.3)}
+.btn:hover{background:var(--red-d);transform:translateY(-1px)}
+.btn:disabled{background:#F0B3A9;box-shadow:none;cursor:default;transform:none}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.btn.ghost:hover{background:var(--soft)}
+.hint{font-size:15px;color:var(--muted);line-height:1.35}
+.hint.ready{color:var(--ok);font-weight:600}
+.hint.no{color:var(--red-d)}
+
+/* s42 */
+.mail{background:#F5F6F8;border-radius:14px;padding:16px 18px}
+.mail dl{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 14px;font-size:16.5px;line-height:1.35}
+.mail dt{color:var(--muted)}
+.mail dd{margin:0;overflow-wrap:anywhere}
+.mail strong{font-family:var(--mono);font-size:15px;font-weight:600}
+.mutation .question-title{margin-top:18px}
+
+/* s46 */
+.category-card{padding:12px 0;border-top:1px solid #F0F1F4}
+.category-card:first-of-type{border-top:0;padding-top:0}
+.category-card h3{font-size:19px;font-weight:600;line-height:1.25;margin-bottom:5px}
+.category-card p{font-size:15.5px;line-height:1.36;margin-bottom:9px}
+
+/* ---------- разбор: открывается на месте задания ---------- */
+.review{height:100%;display:flex;flex-direction:column;padding:26px 30px 24px;border-top:4px solid var(--red)}
+.review.success{border-top-color:var(--ok)}
+.rv-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:18px}
+.rv-head h2{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--red-d)}
+.review.success .rv-head h2{color:var(--ok)}
+.rv-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.rv-grid.single{grid-template-columns:1fr}
+.rv-col{min-height:0;display:flex;flex-direction:column}
+.res{display:grid;grid-template-columns:32px 1fr;gap:13px 14px;align-items:start}
+.res .b{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:16px}
+.res .b.ok{background:var(--ok)}.res .b.no{background:var(--red)}
+.res .x{font-size:16.5px;line-height:1.4;color:var(--ink2);padding-top:5px}
+.res .x strong{color:var(--ink);font-weight:600}
+.rv-grid.single .res .x{font-size:18px}
+.rv-p{margin-top:14px;font-size:16px;line-height:1.42;color:var(--ink2)}
+.rv-col > .rv-p:first-child{margin-top:0}
+.rv-p strong{color:var(--ink)}
+.terminal{background:var(--ink);color:#E6E9EE;border-radius:14px;padding:16px 20px;font:14.5px/1.65 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.terminal .fail{color:#FF9C8A;font-weight:600}
+
+/* итоговая карточка (s48) — правая колонка разбора */
+.threat{background:#F7F8FA;border:1px solid var(--line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;min-height:0;flex:1}
+.threat h3{font-size:22px;font-weight:700;letter-spacing:-.01em;margin-bottom:4px}
+.threat > p{font-size:14.5px;color:var(--ink2);line-height:1.38}
+.threat dl{display:grid;grid-template-columns:130px 1fr;gap:7px 16px;font-size:14.5px;line-height:1.36;margin:12px 0 0}
+.threat dt{color:var(--muted)}
+.threat dd{margin:0}
+.threat textarea{flex:1;min-height:0;width:100%;margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:12.5px/1.5 var(--mono);color:var(--ink);resize:none;background:#fff}
+.threat .row-actions{margin-top:auto;padding-top:14px}
+.threat .btn{padding:11px 18px;font-size:15px}
+
+/* ---------- тост и конфетти — как в примерах ---------- */
+.toast{position:fixed;left:50%;top:18px;z-index:40;display:flex;gap:16px;align-items:center;width:min(92vw,640px);
+  padding:18px 24px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:0 24px 60px rgba(27,32,51,.22);
+  opacity:0;pointer-events:none;transform:translate(-50%,-20px) scale(.96);transition:opacity .35s,transform .45s cubic-bezier(.3,1.5,.5,1);
+  font-family:'Golos Text','Segoe UI',Roboto,Arial,sans-serif}
+.toast.show{opacity:1;pointer-events:auto;cursor:pointer;transform:translate(-50%,0)}
+.toast .em{font-size:clamp(30px,6vw,44px);line-height:1}
+.toast .tt{font-weight:700;font-size:clamp(20px,4vw,28px);letter-spacing:-.02em}
+.toast .ts{font-size:clamp(13px,2.6vw,15.5px);line-height:1.35;color:var(--ink2);margin-top:4px}
+.toast.win{border-color:var(--ok-line)}.toast.win .tt{color:var(--ok)}
+.toast.lose{border-color:var(--red-line)}.toast.lose .tt{color:var(--red-d)}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+.shake{animation:shake .45s}
+@media (prefers-reduced-motion:reduce){
+  .title,.sub,.timer,.step-strip,.content.intro-anim > *,.content.swap > *{animation-duration:.01s!important;animation-delay:0s!important}
+  .timer .pulse{animation:none}
+  .shake{animation:none}
+}
+
+/* ================= Тема 1.8: дополнения к общему стилю слайдов ================= */
+/* блок вопросов: полоса условий сверху и сетка вопросов */
+.strip-ctx{padding:18px 26px;display:grid;grid-template-columns:auto 1fr;gap:6px 22px;align-items:baseline}
+.strip-ctx .eyebrow{margin:0;white-space:nowrap}
+.strip-ctx p{font-size:17px;line-height:1.42;color:var(--ink2)}
+.qpanel{margin-top:22px;padding:24px 28px}
+.qgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px 40px;align-items:start}
+.qblock .question-title{display:flex;gap:10px;align-items:baseline;margin-bottom:9px}
+.qblock .qn{flex:none;font:700 14px var(--mono);color:var(--red)}
+.qblock.wrong .question-title{color:var(--red-d)}
+.wrongtag{flex:none;margin-left:auto;font-size:13.5px;font-weight:700;color:#fff;background:var(--red);border-radius:99px;padding:3px 10px;white-space:nowrap}
+.seg.wrap .option{white-space:normal;flex:1 1 0;padding:10px 8px;min-height:44px}
+.seg .option.miss{background:#fff;color:var(--red-d);box-shadow:inset 0 0 0 2px var(--red)}
+.olist{display:flex;flex-direction:column;gap:6px}
+.orow{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:8px 14px;font-size:15.5px;line-height:1.3;color:var(--ink);
+  transition:border-color .2s,background .2s}
+.orow:hover{border-color:var(--red-line)}
+.orow .mark{width:20px;height:20px;flex:none;border:2px solid var(--radio);border-radius:50%;transition:all .2s}
+.orow[aria-pressed=true]{border-color:var(--red);background:var(--red-bg)}
+.orow[aria-pressed=true] .mark{border:6px solid var(--red);background:#fff}
+.orow.miss{border-color:var(--red);background:#fff}
+.orow.miss .mark{border:0;background:var(--red)}
+
+/* схемы с точками (s10, s34-retry) */
+.graph-layout{display:grid;grid-template-columns:960px minmax(0,1fr);gap:24px;align-items:stretch}
+.graph-wrap{border:1px solid #dfe3e9;border-radius:20px;background:rgba(255,255,255,.6);box-shadow:var(--shadow);overflow:hidden}
+.graph-board{height:450px;position:relative;overflow:hidden;background:linear-gradient(145deg,#fff 10%,#f5f6f9 100%)}
+.graph-board-label{position:absolute;left:22px;top:18px;font:700 13px var(--mono);letter-spacing:.07em;color:#b32d1e;z-index:2}.graph-board-label span{color:#828996}
+.graph-lines{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.graph-lines>path{fill:none;stroke:#b9bec8;stroke-width:2;vector-effect:non-scaling-stroke}
+.graph-lines .dashed{stroke-dasharray:6 6}.graph-lines .threat-line{stroke:#fc3e24;stroke-width:2;stroke-dasharray:5 5}
+.graph-node{position:absolute;min-height:70px;display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #e2e5eb;border-radius:14px;box-shadow:0 6px 18px rgba(27,32,51,.07);z-index:2;width:19%;line-height:1.2}
+.graph-node strong{display:block;font-size:16px;letter-spacing:-.01em}
+.graph-node small{display:block;font-size:13px;color:#626977;margin-top:4px;line-height:1.25}
+.graph-icon{display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:10px;background:var(--red)}
+.graph-icon svg{width:23px;height:23px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.attack-source{left:1%;top:23%}.attack-analyst{left:24%;top:23%}.attack-trader{left:51%;top:23%}.attack-sim{left:77%;top:23%}
+.attack-attacker{left:24%;top:59%;width:24%;background:var(--red-bg);border-color:var(--red)}.attack-attacker strong{color:#bf311f}
+.attack-registry{left:65%;top:72%;width:29%}.attack-registry .graph-icon,.retry-store .graph-icon{background:#303642}
+.graph-point{position:absolute;z-index:4;width:48px;height:48px;border:2px dashed #b9bec8;border-radius:50%;background:#fff;display:grid;place-items:center;color:var(--ink2);padding:0;
+  transform:translate(-50%,-50%);box-shadow:0 4px 10px #1b203315;transition:background .2s,border-color .2s,box-shadow .2s}
+.graph-point:hover,.graph-point.active{border-color:var(--red);box-shadow:0 0 0 6px #fc3e2424}
+.graph-point.chosen{border-style:solid;border-color:var(--red);background:var(--red);color:#fff}
+.graph-point.active.chosen{box-shadow:0 0 0 6px #fc3e2440}
+.graph-point.incorrect{box-shadow:0 0 0 6px #eaa79b;border-color:#a52616}
+.point-letter{font-weight:800;font-size:16px}
+.point-check{position:absolute;right:-6px;top:-6px;display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:#262b34;color:#fff;font-size:12px;font-weight:700}
+.chosen .point-check{background:var(--ok)}
+.graph-point.incorrect .point-check{background:#b42f1d}
+.attack-a{left:46.8%;top:32%}.attack-b{left:70%;top:32%}.attack-c{left:96%;top:32%}
+.graph-inline-note{position:absolute;color:#8b4a40;font-size:13px;font-weight:650}.attack-note{left:25%;top:84%}
+.retry-client{left:5%;top:18%;width:20%}.retry-server{left:62%;top:18%;width:24%}.retry-lost{left:5%;top:50%;width:23%;background:var(--red-bg);border-color:var(--red)}
+.retry-store{left:60%;top:69%;width:25%}.retry-branch{left:30%;top:69%;width:23%}.retry-branch .graph-icon{background:var(--ink2)}
+.retry-a{left:28%;top:73%}.retry-b{left:86%;top:40%}.retry-c{left:57%;top:77%}.retry-d{left:87%;top:77%}
+.packet-label{position:absolute;z-index:2;font:700 13px var(--mono);padding:5px 9px;border-radius:7px;background:#fff;border:1px solid #e2e5eb;color:#626977}
+.request-label{left:37%;top:18%}.lost-label{left:37%;top:43%;color:#c83220}.retry-note{left:63%;top:50%}
+.graph-legend{display:flex;gap:24px;align-items:center;color:#626977;font-size:14.5px;padding:12px 18px;border-top:1px solid var(--line);background:#fff}
+.graph-legend span{display:flex;gap:8px;align-items:center}
+.legend-control,.legend-selected{display:inline-grid;place-items:center;width:24px;height:24px;border:1px dashed #aaa;border-radius:50%;font-style:normal;font-weight:700}
+.legend-selected{border:0;background:var(--ok);color:#fff}
+.graph-side{display:flex;flex-direction:column;border-top:4px solid var(--red)}
+.graph-side h2{font-size:23px;line-height:1.2;margin-bottom:8px}
+.graph-prompt{font-size:15.5px!important;color:var(--muted)!important;margin-bottom:16px}
+.graph-side .choice{align-items:center;padding:14px 16px}
+.graph-side .choice strong{font-size:17px;margin:0}
+.choice.miss{border-color:var(--red);background:#fff}
+.choice.miss .mark{border:0;background:var(--red)}
+.choice.miss .mark::after{content:'!';font-size:14px}
+.point-hint{color:var(--red-d);font-size:15px;margin-top:14px;font-weight:600}
+.graph-side .row-actions{margin-top:auto;padding-top:18px}
+.graph-brief{margin-top:18px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.85);border:1px solid var(--line);font-size:16px;line-height:1.42;color:var(--ink2)}
+.graph-brief strong{color:var(--ink)}
+
+/* порядок событий (s35) */
+.order-list{display:flex;flex-direction:column;gap:10px}
+.order-card{display:grid;grid-template-columns:40px 1fr auto;gap:14px;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px 12px 16px;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),border-color .2s}
+.order-card .order-number{font:700 17px var(--mono);color:var(--red)}
+.order-card strong{display:block;font-size:18px;font-weight:600;line-height:1.25}
+.order-card small{display:block;font-size:15px;color:var(--ink2);margin-top:3px;line-height:1.3}
+.order-buttons{display:flex;gap:6px}
+.order-buttons button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-size:18px;color:var(--ink2);padding:0}
+.order-buttons button:hover:not(:disabled){background:#fff;border-color:var(--red-line);color:var(--red-d)}
+.order-buttons button:disabled{opacity:.35;cursor:default}
+.order-list.miss .order-card{border-color:var(--red-line)}
+.order-warning{margin-top:12px;font-size:15px;font-weight:600;color:var(--red-d)}
+
+/* разбор: прогоны и журнал */
+.review-text{font-size:19px;line-height:1.5;color:var(--ink)}
+.rv-grid.single .review-text{font-size:21px;max-width:1240px}
+.runs{display:flex;flex-direction:column;gap:12px}
+.run{display:grid;grid-template-columns:42px 1fr;gap:4px 14px;align-items:center;background:#F7F8FA;border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+.run .n{grid-row:span 2;font:700 18px var(--mono);color:var(--red)}
+.run strong{font-size:17px;font-weight:600}
+.run span{font-size:16px;color:var(--ink2)}
+.run.bad{background:var(--red-bg);border-color:var(--red-line)}
+
+.rv-note{margin-top:14px;font-size:14.5px;color:var(--muted);line-height:1.4}
+.terminal{font-size:15px;line-height:1.75}
+/* уточнения специфичности (общие правила .panel p и цвета заголовка разбора) */
+.panel .review-text{font-size:19px;line-height:1.5;color:var(--ink)}
+.panel .rv-grid.single .review-text{font-size:21px}
+.panel .rv-note{margin-top:14px;font-size:14.5px;color:var(--muted);line-height:1.4}
+.panel.graph-side .point-hint{color:var(--red-d);font-size:15px;font-weight:600}
+.review .rv-head h2,.review.success .rv-head h2{color:var(--ink)}
+.run .n{color:var(--red)}
+.run.good > span:last-child{color:var(--ok);font-weight:600}
+.run.bad > span:last-child{color:var(--red-d);font-weight:600}
+.run.good .n,.run.bad .n{font-weight:700}
+</style>
+</head>
+<body data-exercise="s10">
+<div id="app"></div>
+<noscript>Для выполнения задания включите JavaScript.</noscript>
+<script>
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.Lesson = factory();
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+'use strict';
+const tasks = [
+ {id:'s10',slide:'10',title:'Где остановить атаку?',subtitle:'Поставьте проверки на карту и сравните два пути к эффекту.', kind:'map',
+  context:'В реестре: T-104, одна покупка EDU, объём до 10. Аналитик отправил рекомендацию на 5. Посредник контролирует HTTP-канал, но не ключи участников и не реестр.',
+  questions:[{id:'channel',title:'Канал аналитик → трейдер', options:[['on','mTLS с проверкой сторон'],['off','Доверять имени в сообщении']]},{id:'trader',title:'Проверка у трейдера',options:[['on','Сверять задачу и лимит с реестром'],['off','Принять рекомендацию']]},{id:'executor',title:'Проверка у симулятора',options:[['on','Независимо сверять право и лимит'],['off','Доверять трейдеру']]}], answer:{channel:'on',trader:'on',executor:'on'},
+  debrief:'Для заданного посредника взаимная аутентификация защищает канал между точками TLS. Она не запрещает подлинному аналитику предложить 50. Трейдер и симулятор независимо проверяют лимит по доверенному состоянию; допустимый запрос на 5 проходит. Прямая компрометация участника или реестра в этой модели не рассматривается.'},
+ {id:'s21',slide:'21',title:'Кому верить после отмены?',subtitle:'Выберите основание решения и определите судьбу нового запроса.', kind:'questions',
+  context:'Реестр: пользовательская P-104 и дочерняя T-104 отменены; ранее лимит составлял 10. Аналитик пишет: «T-104 активна, разрешено 50». Запрос новый, никакой эффект по нему ещё не начался.',
+  questions:[{id:'source',title:'Какой источник определяет статус и лимит?',options:[['message','Сообщение аналитика'],['registry','Проверенный реестр'],['larger','Наибольший из лимитов']]},{id:'who',title:'Кто проверяет статус перед действием?',options:[['analyst','Только аналитик'],['both','Получатель и исполнитель'],['nobody','Достаточно статуса в сообщении']]},{id:'decision',title:'Что делать с новым запросом?',options:[['allow','Выполнить'],['deny','Отклонить'],['retry','Повторять до успеха']]},{id:'previous',title:'Что известно об операции, начатой до отмены?',options:[['rollback','Автоматически отменена'],['unknown','Нужны состояние и контракт исполнителя'],['done','Обязательно завершена']]}],answer:{source:'registry',who:'both',decision:'deny',previous:'unknown'},
+  debrief:'Ограничения и статус берутся из проверенного реестра, а не из заявления отправителя. Получатель и исполнитель проверяют актуальность до нового эффекта. Для ранее начатой операции нужны её состояние и правила завершения, остановки или компенсации.'},
+ {id:'s26',slide:'26',title:'Какой тест доказывает защиту?',subtitle:'Сопоставьте три запроса с точками решения и выберите доказательную пару.',kind:'questions',
+  context:'Исходные и конечные снимки симулятора сохранены. Разрешённые стороны и T-104 активны. Тесты независимы: состояние сбрасывается между прогонами.',
+  questions:[{id:'certificate',title:'Клиент без сертификата:',options:[['handshake','Отказ соединения; запрос не обработан'],['limit','Отказ лимита у симулятора'],['allow','Операция выполнена']]},{id:'foreign',title:'Подлинный аналитик прислал T-099 в контекст T-104:',options:[['connection','Отказ TLS только из-за T-099'],['binding','Получатель отклоняет привязку; нет новой операции'],['allow','Можно выполнить по подписи']]},{id:'direct',title:'Допустимый трейдер напрямую запросил объём 50:',options:[['simulator','Симулятор отклоняет по лимиту; нет новой операции'],['certificate','Обязательно отказ сертификата'],['allow','Симулятор обязан выполнить']]},{id:'pair',title:'Какая пара проверяет ограничение и полезность?',options:[['two-denies','Два отказа на 50'],['pair','Прямой запрос на 50 от допустимого трейдера и допустимый запрос на 5'],['model','Два ответа модели без состояния симулятора']]}],answer:{certificate:'handshake',foreign:'binding',direct:'simulator',pair:'pair'},
+  debrief:'Отсутствие клиентского сертификата проверяется на соединении; идентификатор задачи — получателем; прямой запрос с допустимой идентичностью позволяет проверить лимит самого симулятора. Положительный запрос на 5 подтверждает, что полезный маршрут не отключён. Нет новой операции устанавливают сравнением снимков и событий.'},
+ {id:'s34-retry',slide:'34',title:'Ответ потерян. Что дальше?',subtitle:'Настройте повтор и поведение симулятора для одной бизнес-операции.',kind:'questions',
+  context:'Трейдер отправил разрешённую операцию O-104 и получил тайм-аут. Он не знает, был ли эффект. В учебном симуляторе ключ, параметры, эффект и результат могут фиксироваться атомарно.',
+  questions:[{id:'retry',title:'Как повторить ту же операцию?',options:[['same','С тем же operation_id и параметрами'],['new','Создать новый operation_id'],['none','Считать тайм-аут доказательством отсутствия эффекта']]},{id:'stored',title:'Ключ и параметры совпадают; результат уже сохранён:',options:[['again','Выполнить заново'],['return','Вернуть сохранённый результат'],['delete','Удалить старую запись']]},{id:'changed',title:'Ключ тот же, но параметры изменились:',options:[['conflict','Отклонить конфликт'],['again','Выполнить новую операцию'],['overwrite','Заменить старый результат']]},{id:'boundary',title:'Где предотвращается повторный эффект?',options:[['client','Только в интерфейсе трейдера'],['atomic','В точке эффекта: атомарная связь ключа, параметров и результата'],['tls','В канале mTLS']]}],answer:{retry:'same',stored:'return',changed:'conflict',boundary:'atomic'},
+  trace:'ПОПЫТКА 1  O-104 · параметры A → эффект зафиксирован; ответ потерян\nПОПЫТКА 2  O-104 · параметры A → сохранённый результат; нового эффекта нет\nПРОВЕРКА   O-104 · параметры B → конфликт; нового эффекта нет\nИТОГ       2 попытки одной операции · 1 эффект',
+  debrief:'В учебном прогоне симулятор выполнил O-104 и сохранил результат до потери ответа. Повтор с тем же ключом и параметрами возвращает результат: две попытки, один эффект. Изменение параметров вызывает конфликт. Гарантия зависит от области и срока хранения ключа и атомарности; последовательный опыт не доказывает конкурентную корректность.'},
+ {id:'s34-breaker',slide:'34',title:'Когда снова обращаться к сервису?',subtitle:'Проведите breaker через отказ и восстановление.',kind:'questions',
+  context:'Отдельный опыт: временный отказ зависимости происходит до эффекта. Порог — два учитываемых отказа. После заданного интервала разрешена одна проба. Отказы политики не учитываются.',
+  questions:[{id:'after',title:'Два временных отказа подряд. Какое состояние?',options:[['closed','Closed'],['open','Open'],['half','Half-open']]},{id:'open',title:'Новый запрос до окончания интервала:',options:[['passes','Доходит до сервиса'],['blocked','Не доходит до сервиса'],['probe','Всегда становится пробой']]},{id:'probe',title:'Интервал прошёл. Что допускается?',options:[['all','Все запросы'],['one','Одна проба в half-open'],['none','Ни одного запроса навсегда']]},{id:'success',title:'Проба успешна. Что дальше?',options:[['open','Вернуться в open'],['closed','Вернуться в closed'],['half','Остаться в half-open навсегда']]},{id:'policy',title:'Отказ по политике доступа:',options:[['count','Учитывать как сбой зависимости'],['ignore','Не учитывать как временный сбой зависимости']]}],answer:{after:'open',open:'blocked',probe:'one',success:'closed',policy:'ignore'},
+  trace:'CLOSED → временный отказ 1 → временный отказ 2 → OPEN\nOPEN → запрос отклонён локально; вызова сервиса нет\nИНТЕРВАЛ ИСТЁК → HALF-OPEN → одна проба успешна → CLOSED\nОтказ политики не увеличивает счётчик временных отказов.',
+  debrief:'После двух учитываемых временных отказов breaker открывается; запросы в open не доходят до сервиса. По истечении интервала одна проба в half-open определяет возврат в closed или open. Отказы политики рассматриваются отдельно. Breaker не предотвращает повторный бизнес-эффект.'},
+ {id:'s35',slide:'35',title:'Соберите цепочку событий',subtitle:'Восстановите порядок и выберите свидетельство исполнения.',kind:'order',
+  context:'Есть основание P-104 и назначенная T-104. Из журналов собраны события аналитика, трейдера и симулятора. Карточки ниже перемешаны.',
+  cards:[['effect','Результат симулятора','operation_id, статус и фактический эффект'],['decision','Решение трейдера','Проверка политики, причина допуска или отказа'],['origin','Поручение','Инициатор, P-104, назначение T-104 и лимит'],['recommendation','Рекомендация аналитика','Результат и происхождение входных данных']],
+  questions:[{id:'evidence',title:'Что подтверждает выполнение операции?',options:[['sent','Только отправка запроса'],['received','Только получение сообщения'],['effect','Результат или состояние симулятора, связанное с operation_id']]}],answer:{evidence:'effect'},order:['origin','recommendation','decision','effect'],
+  debrief:'Основание и назначение связывают инициатора с задачей, рекомендация показывает вклад аналитика, решение политики — допуск, а результат симулятора — фактический эффект. Доставка и выполнение различаются; для расследования также нужны task_id, parent_task_id, message_id, operation_id и попытки.'}
+];
+function score(task, answers, order) { return task.questions.every(q=>answers[q.id]===task.answer[q.id]) && (!task.order || (Array.isArray(order) && task.order.every((id,i)=>order[i]===id))); }
+function mapSimulation(a) {
+ const channel=a.channel==='on', trader=a.trader==='on', executor=a.executor==='on';
+ return [
+  {name:'Подмена в канале: 5 → 50', result:channel?'Остановлено на канале':trader?'Отказ трейдера':executor?'Отказ симулятора':'Симулятор выполнил 50'},
+  {name:'Подлинный аналитик предлагает 50', result:trader?'Отказ трейдера':executor?'Отказ симулятора':'Симулятор выполнил 50'},
+  {name:'Разрешённая рекомендация: 5',result:'Симулятор выполнил 5'}
+ ];
+}
+return {tasks,score,mapSimulation};
+});
+</script>
+<script>
+(() => {
+'use strict';
+/* Тема 1.8. Логика заданий — в блоке Lesson выше (model.js без изменений).
+   Интерфейс — слайд 16:9 в стиле темы 1.3 (s48.html): без прокрутки, тост, автотаймер, разбор на месте задания.
+   Первый ответ отправляется в Cloudflare через training-api.js со slideId вида t18-s10. */
+const M = window.Lesson, root = document.getElementById('app'), id = document.body.dataset.exercise;
+const task = M.tasks.find(t => t.id === id);
+const SLIDE_ID = 't18-' + id;               // идентификатор слайда в Worker / D1 (не пересекается с темой 1.3)
+const key = 'agent-security-1-8.v1', LOGO = 'data:image/png;base64,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';
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- отметка о прохождении (как в исходном app.js) ---------- */
+let completed = {};
+try { const saved = JSON.parse(localStorage.getItem(key) || '{}'); if (saved && typeof saved === 'object') completed = Object.fromEntries(M.tasks.map(t => [t.id, saved[t.id] === true])); } catch {}
+function save() { try { localStorage.setItem(key, JSON.stringify(completed)); } catch {} }
+
+/* ---------- состояние ---------- */
+const DIAGRAM = ['s10', 's34-retry'].includes(id);
+const POINT_ORDER = id === 's34-retry' ? ['retry', 'boundary', 'stored', 'changed'] : task.questions.map(q => q.id);
+const LETTERS = id === 's10' ? {channel:'A', trader:'B', executor:'C'} : {retry:'A', boundary:'B', stored:'C', changed:'D'};
+let answers = {}, order = task.cards ? task.cards.map(c => c[0]) : [], checked = false;
+let view = 'task', activePoint = DIAGRAM ? POINT_ORDER[0] : null;
+let remaining = 180, running = false, tick = null, firstRender = true;
+
+const IC = {
+  fs:'<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  pause:'<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>',
+  play:'<path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/>',
+  source:'<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M8 12h8M8 16h8"/>',
+  agent:'<rect x="3" y="7" width="18" height="13" rx="3"/><path d="M12 3v4M8 12h.01M16 12h.01M8 16h8"/>',
+  sim:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6M7 17h4"/>',
+  registry:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5"/>',
+  warn:'<path d="M12 3 2 21h20L12 3zM12 9v5M12 17h.01"/>',
+  ret:'<path d="M8 8H5V5M5 8a8 8 0 1 1 0 8M8 8l-3-3"/>'
+};
+const svg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg>`;
+
+/* ---------- каркас слайда ---------- */
+root.innerHTML = `<div id="stage">
+  <h1 class="title">${esc(task.title)}</h1>
+  <img class="logo" src="${LOGO}" alt="">
+  <div class="timer" id="timer" role="timer"><span class="pulse" aria-hidden="true"></span><span class="tm" id="clock">3:00</span><button type="button" class="tb" data-action="timer" id="timerBtn"></button></div>
+  <p class="sub">${esc(task.subtitle)}</p>
+  <div class="content intro-anim" id="content"></div>
+  <button type="button" class="fs" data-action="fullscreen" title="На весь экран" aria-label="На весь экран">${svg('fs')}</button>
+</div>`;
+document.title = task.title;
+const stage = document.getElementById('stage'), content = document.getElementById('content');
+// длинный заголовок уменьшается, чтобы не заходить под таймер
+(function fitTitle() { const t = stage.querySelector('.title'); let fs = 74; t.style.fontSize = ''; while (t.scrollWidth > 1060 && fs > 52) { fs -= 2; t.style.fontSize = fs + 'px'; } if (document.fonts && document.fonts.ready && !fitTitle.done) { fitTitle.done = true; document.fonts.ready.then(fitTitle); } })();
+
+function fit() {
+  const vw = innerWidth, vh = innerHeight, s = Math.min(vw / 1600, vh / 900);
+  stage.style.transform = `translate(${(vw - 1600 * s) / 2}px, ${(vh - 900 * s) / 2}px) scale(${s})`;
+}
+addEventListener('resize', fit);
+fit();
+
+/* ---------- тост и конфетти, как в примерах ---------- */
+const toastEl = document.createElement('div');
+toastEl.className = 'toast'; toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite');
+toastEl.innerHTML = '<div class="em"></div><div><div class="tt"></div><div class="ts"></div></div>';
+document.body.appendChild(toastEl);
+toastEl.addEventListener('click', () => toastEl.classList.remove('show'));
+let toastTimer = null;
+function toast(kind, em, title, text, ms = 6500) {
+  toastEl.className = 'toast ' + kind;
+  toastEl.querySelector('.em').textContent = em;
+  toastEl.querySelector('.tt').textContent = title;
+  toastEl.querySelector('.ts').textContent = text;
+  requestAnimationFrame(() => toastEl.classList.add('show'));
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
+  if (kind === 'win') confetti();
+}
+function hideToast() { toastEl.classList.remove('show'); }
+const cv = document.createElement('canvas'); cv.id = 'confetti'; document.body.appendChild(cv);
+function confetti() {
+  if (reduced) return;
+  const ctx = cv.getContext('2d'), dpr = devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cols = ['#FC3E24', '#16181D', '#FFB4A6', '#1E9E5A', '#C3C7CF', '#FFD166'];
+  const ps = Array.from({length: 160}, () => ({
+    x: innerWidth / 2 + (Math.random() - .5) * innerWidth * .3, y: innerHeight * .2,
+    vx: (Math.random() - .5) * 14, vy: -Math.random() * 12 - 4,
+    w: 6 + Math.random() * 7, h: 8 + Math.random() * 10, r: Math.random() * 6, vr: (Math.random() - .5) * .35,
+    c: cols[(Math.random() * cols.length) | 0]
+  }));
+  const t0 = performance.now();
+  const frame = now => {
+    const el = now - t0;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ps.forEach(p => {
+      p.vy += .32; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+      ctx.globalAlpha = Math.max(0, 1 - el / 2600);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)));
+      ctx.restore();
+    });
+    if (el < 2600) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  };
+  requestAnimationFrame(frame);
+}
+function shake(el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+document.addEventListener('animationend', e => { if (e.animationName === 'shake') e.target.classList.remove('shake'); });
+
+/* ---------- проверка: только факт ошибки, без раскрытия правильного ответа ---------- */
+const isWrong = qid => checked && answers[qid] !== task.answer[qid];
+const orderWrong = () => checked && task.order && !task.order.every((x, i) => order[i] === x);
+const allAnswered = () => task.questions.every(q => answers[q.id]);
+function btn(label, action, extra = '', cls = 'btn') { return `<button type="button" class="${cls}" data-action="${action}" ${extra}>${label}</button>`; }
+function actions(label) {
+  if (checked) {
+    const ok = completed[id];
+    return `<div class="row-actions">${btn(id === 's10' ? 'Прогоны и разбор' : 'Показать разбор', 'review')}<span class="hint ${ok ? 'ready' : 'no'}">${ok ? 'Все ответы правильные.' : 'Исправьте отмеченное и проверьте снова.'}</span></div>`;
+  }
+  const n = task.questions.filter(q => answers[q.id]).length, all = allAnswered();
+  return `<div class="row-actions">${btn(label, 'check', all ? '' : 'disabled')}<span class="hint${all ? ' ready' : ''}">${all ? 'Всё готово к проверке.' : `${DIAGRAM ? 'Настроено точек' : 'Ответов'}: ${n} из ${task.questions.length}`}</span></div>`;
+}
+
+/* ---------- вопросы: сегменты для коротких вариантов, список для длинных ---------- */
+function questionBlock(q, i) {
+  const wrong = isWrong(q.id), short = q.options.every(([, l]) => l.length <= 30);
+  const opts = short
+    ? `<div class="seg wrap" role="group" aria-label="${esc(q.title)}">${q.options.map(([v, l]) => `<button type="button" class="option${answers[q.id] === v && wrong ? ' miss' : ''}" data-question="${q.id}" data-value="${v}" aria-pressed="${answers[q.id] === v}">${esc(l)}</button>`).join('')}</div>`
+    : `<div class="olist" role="group" aria-label="${esc(q.title)}">${q.options.map(([v, l]) => `<button type="button" class="orow${answers[q.id] === v && wrong ? ' miss' : ''}" data-question="${q.id}" data-value="${v}" aria-pressed="${answers[q.id] === v}"><span class="mark" aria-hidden="true"></span><span>${esc(l)}</span></button>`).join('')}</div>`;
+  return `<section class="qblock${wrong ? ' wrong' : ''}"><div class="question-title"><span class="qn">${String(i + 1).padStart(2, '0')}</span><span>${esc(q.title)}</span>${wrong ? '<span class="wrongtag">Проверьте</span>' : ''}</div>${opts}</section>`;
+}
+function questionsView() {
+  return `<div><section class="panel context flat strip-ctx"><div class="eyebrow">Что известно</div><p>${esc(task.context)}</p></section>
+  <section class="panel qpanel"><div class="qgrid">${task.questions.map(questionBlock).join('')}</div>${actions('Проверить')}</section></div>`;
+}
+
+/* ---------- порядок событий (s35) ---------- */
+function orderView() {
+  const ow = orderWrong();
+  return `<div class="workspace even"><section class="panel"><h2>Порядок событий${ow ? ' <span class="wrongtag" style="font-size:14px;vertical-align:4px">Проверьте</span>' : ''}</h2><p style="margin:-6px 0 16px;font-size:16px;color:var(--muted)">Перемещайте карточки стрелками: от поручения к результату.</p>
+    <div class="order-list${ow ? ' miss' : ''}">${order.map((cid, i) => { const c = task.cards.find(x => x[0] === cid); return `<div class="order-card"><span class="order-number">${String(i + 1).padStart(2, '0')}</span><span><strong>${esc(c[1])}</strong><small>${esc(c[2])}</small></span><span class="order-buttons"><button type="button" data-action="up" data-id="${cid}" aria-label="Поднять: ${esc(c[1])}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-action="down" data-id="${cid}" aria-label="Опустить: ${esc(c[1])}" ${i === order.length - 1 ? 'disabled' : ''}>↓</button></span></div>`; }).join('')}</div>
+    ${ow ? '<p class="order-warning">Проверьте порядок карточек.</p>' : ''}</section>
+  <section class="panel context"><h2>Что известно</h2><p>${esc(task.context)}</p><div class="note">Получение сообщения и выполнение операции — разные события.</div>
+    <div style="margin-top:20px">${task.questions.map(questionBlock).join('')}</div>${actions('Проверить')}</section></div>`;
+}
+
+/* ---------- схемы с точками (s10, s34-retry) ---------- */
+function node(cls, icon, title, d) { return `<div class="graph-node ${cls}"><span class="graph-icon">${svg(icon)}</span><span><strong>${title}</strong><small>${d}</small></span></div>`; }
+function point(qid, cls) {
+  const q = task.questions.find(x => x.id === qid), chosen = !!answers[qid], wrong = isWrong(qid), L = LETTERS[qid];
+  return `<button type="button" class="graph-point ${cls}${activePoint === qid ? ' active' : ''}${chosen ? ' chosen' : ''}${wrong ? ' incorrect' : ''}" data-action="point" data-id="${qid}" aria-label="Точка ${L}: ${esc(q.title)}${chosen ? ' — ответ выбран' : ''}${wrong ? ' — проверьте ответ' : ''}" aria-pressed="${activePoint === qid}" title="${esc(q.title)}"><span class="point-letter">${L}</span><span class="point-check" aria-hidden="true">${wrong ? '!' : chosen ? '✓' : '+'}</span></button>`;
+}
+const ARROW = '<defs><marker id="graph-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9z" fill="#b9bec8"/></marker></defs>';
+function attackBoard() {
+  return `<div class="graph-board"><div class="graph-board-label">ГРАНИЦЫ ДОВЕРИЯ <span>· T-104</span></div><svg class="graph-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">${ARROW}<path d="M180 122H215 M390 122H455 M625 122H690" marker-end="url(#graph-arrow)"/><path d="M305 230V155 M540 155V277 M775 155V277 M540 277H775" class="dashed"/><path d="M305 230H382V190" class="threat-line"/></svg>${node('attack-source', 'source', 'Источник', 'Внешние данные')}${node('attack-analyst', 'agent', 'Аналитик', 'Рекомендует EDU × 5')}${node('attack-trader', 'agent', 'Трейдер', 'Получает рекомендацию')}${node('attack-sim', 'sim', 'Симулятор', 'Выполняет операцию')}${node('attack-attacker', 'warn', 'Посредник', 'Может изменить 5 → 50')}${node('attack-registry', 'registry', 'Реестр задач', 'T-104 · EDU · не более 10')}${point('channel', 'attack-a')}${point('trader', 'attack-b')}${point('executor', 'attack-c')}<div class="graph-inline-note attack-note">Подлинный аналитик тоже может предложить 50</div></div>`;
+}
+function retryBoard() {
+  return `<div class="graph-board"><div class="graph-board-label">ПОТЕРЯ ОТВЕТА <span>· O-104</span></div><svg class="graph-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">${ARROW}<path d="M225 105H560" marker-end="url(#graph-arrow)"/><path d="M560 180H225" class="dashed" marker-end="url(#graph-arrow)"/><path d="M180 200V280H520 M710 210V280H520" marker-end="url(#graph-arrow)"/><path d="M600 315H860" class="dashed"/></svg>${node('retry-client', 'agent', 'Трейдер', 'Ждёт ответ на O-104')}${node('retry-server', 'sim', 'Симулятор', 'Возможен эффект')}${node('retry-lost', 'warn', 'Тайм-аут', 'Ответ не получен')}${node('retry-store', 'registry', 'Проверка повтора', 'Ключ и параметры')}${node('retry-branch', 'ret', 'Повтор', 'Те же / иные параметры')}${point('retry', 'retry-a')}${point('boundary', 'retry-b')}${point('stored', 'retry-c')}${point('changed', 'retry-d')}<div class="packet-label request-label">O-104 → запрос</div><div class="packet-label lost-label">ответ потерян ×</div><div class="graph-inline-note retry-note">Эффект мог уже произойти</div></div>`;
+}
+function diagramView() {
+  const q = task.questions.find(x => x.id === activePoint), wrong = isWrong(q.id);
+  const range = id === 's10' ? 'A–C' : 'A–D';
+  return `<div><div class="graph-layout"><div class="graph-wrap">${id === 's10' ? attackBoard() : retryBoard()}<div class="graph-legend"><span><i class="legend-control">+</i> Нажмите точки ${range} и выберите решение</span><span><i class="legend-selected">✓</i> Ответ выбран</span></div></div>
+    <aside class="panel graph-side"><div class="eyebrow">Точка ${LETTERS[q.id]}</div><h2>${esc(q.title)}</h2><p class="graph-prompt">Выберите решение для отмеченной точки на схеме.</p>
+      <div role="group" aria-label="${esc(q.title)}">${q.options.map(([v, l]) => `<button type="button" class="choice${answers[q.id] === v && wrong ? ' miss' : ''}" data-question="${q.id}" data-value="${v}" aria-pressed="${answers[q.id] === v}"><span class="mark" aria-hidden="true"></span><span><strong>${esc(l)}</strong></span></button>`).join('')}</div>
+      ${wrong ? '<p class="point-hint">Проверьте решение в этой точке.</p>' : ''}${actions(id === 's10' ? 'Запустить прогоны' : 'Проверить')}</aside></div>
+    <div class="graph-brief"><strong>Условия.</strong> ${esc(task.context)}</div></div>`;
+}
+
+/* ---------- разбор ведущего: открывается на месте задания ---------- */
+function review() {
+  const ok = completed[id];
+  let side = '';
+  if (task.kind === 'map') {
+    side = `<div class="eyebrow">Результат учебной симуляции</div><div class="runs">${M.mapSimulation(answers).map((r, i) => { const harm = /выполнил 50/.test(r.result), good = /выполнил 5$/.test(r.result); return `<div class="run${harm ? ' bad' : good ? ' good' : ''}"><span class="n">0${i + 1}</span><strong>${esc(r.name)}</strong><span>${esc(r.result)}</span></div>`; }).join('')}</div><p class="rv-note">Отдельные прогоны после сброса состояния для выбранной конфигурации. Это модель условий задачи, а не проверка стенда.</p>`;
+  } else if (task.trace) side = `<div class="eyebrow">Учебный прогон</div><div class="terminal">${esc(task.trace)}</div>`;
+  return `<section class="panel review${ok ? ' success' : ''}" aria-live="polite"><div class="rv-head"><div><div class="eyebrow">Для обсуждения</div><h2>Разбор</h2></div>${btn('← Вернуться к заданию', 'task', '', 'btn ghost')}</div>
+    <div class="rv-grid${side ? '' : ' single'}"><div class="rv-col"><p class="review-text">${esc(task.debrief)}</p></div>${side ? `<div class="rv-col">${side}</div>` : ''}</div></section>`;
+}
+
+/* ---------- отрисовка ---------- */
+function render(swap = false) {
+  content.innerHTML = view === 'review' && checked ? review()
+    : DIAGRAM ? diagramView() : task.kind === 'order' ? orderView() : questionsView();
+  if (!firstRender) content.classList.remove('intro-anim');
+  content.classList.toggle('swap', swap);
+  firstRender = false;
+  renderTimer();
+}
+
+/* ---------- таймер: стартует сам при открытии слайда ---------- */
+function clockText() { return `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`; }
+function renderTimer() {
+  const t = document.getElementById('timer'), over = remaining === 0;
+  t.classList.toggle('over', over); t.classList.toggle('paused', !running && !over);
+  document.getElementById('clock').textContent = over ? 'Время обсудить' : clockText();
+  const b = document.getElementById('timerBtn');
+  b.innerHTML = svg(running ? 'pause' : 'play');
+  const label = running ? 'Пауза' : (over ? 'Запустить таймер заново' : 'Продолжить');
+  b.title = label; b.setAttribute('aria-label', label);
+}
+function stopTimer() { running = false; clearInterval(tick); tick = null; renderTimer(); }
+function startTimer() {
+  if (running) return;
+  if (remaining === 0) remaining = 180;
+  running = true;
+  tick = setInterval(() => { remaining = Math.max(0, remaining - 1); if (remaining === 0) stopTimer(); else renderTimer(); }, 1000);
+  renderTimer();
+}
+
+/* ---------- ответ для Cloudflare: только выбор участника, оценку делает Worker ---------- */
+function answerPayload() {
+  const p = {answers: Object.fromEntries(task.questions.map(q => [q.id, answers[q.id]]))};
+  if (task.order) p.order = order.slice();
+  return p;
+}
+function changed() { checked = false; view = 'task'; completed[id] = false; save(); hideToast(); }
+
+/* ---------- события ---------- */
+root.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.question) {
+    answers[b.dataset.question] = b.dataset.value; changed();
+    // на схеме после выбора открывается следующая незаполненная точка (как в исходнике)
+    const next = DIAGRAM ? POINT_ORDER.find(q => !answers[q]) : null;
+    if (next) activePoint = next;
+    render();
+    const focus = next ? root.querySelector(`[data-action="point"][data-id="${next}"]`) : root.querySelector(`[data-question="${b.dataset.question}"][data-value="${b.dataset.value}"]`);
+    if (focus) focus.focus({preventScroll: true});
+    return;
+  }
+  switch (b.dataset.action) {
+    case 'point': activePoint = b.dataset.id; render(); root.querySelector(`[data-action="point"][data-id="${activePoint}"]`)?.focus({preventScroll: true}); break;
+    case 'up': case 'down': {
+      const i = order.indexOf(b.dataset.id), j = i + (b.dataset.action === 'up' ? -1 : 1);
+      if (j < 0 || j >= order.length) return;
+      [order[i], order[j]] = [order[j], order[i]]; changed(); render();
+      root.querySelector(`[data-action="${b.dataset.action}"][data-id="${b.dataset.id}"]`)?.focus({preventScroll: true});
+      break;
+    }
+    case 'check':
+      if (!allAnswered()) return;
+      // Первый ответ уходит в Cloudflare; повторные проверки и перезагрузка страницы его не меняют
+      if (window.TrainingAPI) window.TrainingAPI.submit(SLIDE_ID, 'main', answerPayload());
+      stopTimer(); checked = true; completed[id] = M.score(task, answers, order); save();
+      if (DIAGRAM && !completed[id]) activePoint = POINT_ORDER.find(isWrong) || activePoint;
+      render();
+      if (completed[id]) toast('win', '🔥', 'Красавчик!', 'Все ответы правильные.');
+      else {
+        toast('lose', '🤔', 'Есть что уточнить', 'Проверьте отмеченные пункты и попробуйте ещё раз.', 5000);
+        root.querySelectorAll('.qblock.wrong, .order-list.miss, .graph-side .choice.miss').forEach(shake);
+      }
+      break;
+    case 'review': view = 'review'; render(true); break;
+    case 'task': view = 'task'; render(true); break;
+    case 'timer': if (running) stopTimer(); else startTimer(); break;
+    case 'fullscreen': {
+      const d = document.documentElement;
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (d.requestFullscreen && document.fullscreenEnabled) d.requestFullscreen().catch(() => open(location.href, '_blank'));
+      else open(location.href, '_blank');
+      break;
+    }
+  }
+});
+
+render();
+startTimer();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+})();
+</script>
+<script src="./training-api.js"></script>
+</body>
+</html>
