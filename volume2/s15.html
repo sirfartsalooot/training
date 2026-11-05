@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Миграция без потери поведения</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#FC3E24; --red-d:#E0321B; --red-bg:#FFF1EE; --red-line:#F6B2A6;
+  --ink:#16181D; --ink2:#4A4F5B; --muted:#7A808C;
+  --line:#E2E5EB; --soft:#F3F4F6; --radio:#C3C7CF;
+  --ok:#1E9E5A; --ok-bg:#E8F6EE; --ok-line:#BFE6CF;
+  --mono:ui-monospace,'Cascadia Mono','JetBrains Mono',Consolas,monospace;
+  --shadow:0 6px 18px rgba(27,32,51,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  background:linear-gradient(180deg,#E9ECF0 0%,#F6F6F8 35%,#FFFFFF 100%);
+  font-family:'Golos Text','TT Positive','Segoe UI',Roboto,Arial,sans-serif;
+  color:var(--ink);-webkit-tap-highlight-color:transparent;
+}
+button,textarea{font-family:inherit}
+button{cursor:pointer}
+button:focus-visible,textarea:focus-visible{outline:3px solid #2378c4;outline-offset:3px}
+h1,h2,h3,p{margin:0}
+code{font-family:var(--mono);font-size:.92em;overflow-wrap:anywhere}
+[hidden]{display:none!important}
+
+/* ---------- сцена 16:9 ---------- */
+#stage{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;padding:58px 80px 62px;
+  display:flex;flex-direction:column;overflow:hidden}
+.logo{position:absolute;right:77px;top:72px;width:68px;height:68px;border-radius:6px}
+.title{font-weight:700;font-size:74px;line-height:1;letter-spacing:-.03em;color:#000;white-space:nowrap;max-width:1080px;
+  opacity:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+.sub{margin-top:26px;font-size:24px;line-height:1.35;color:var(--muted);max-width:1180px;opacity:0;animation:rise .6s ease .12s forwards}
+.has-strip .sub{max-width:1070px;font-size:22px}
+.fs{position:absolute;right:77px;bottom:18px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  display:grid;place-items:center;padding:0;z-index:3}
+.fs svg{width:17px;height:17px;stroke:var(--ink2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- таймер ---------- */
+.timer{position:absolute;right:170px;top:84px;display:flex;align-items:center;gap:10px;height:46px;padding:0 8px 0 18px;
+  border-radius:99px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);opacity:0;animation:rise .6s ease .2s forwards}
+.timer .tm{font-weight:700;font-size:22px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;min-width:52px}
+.timer .tb{width:32px;height:32px;border-radius:50%;border:0;background:var(--soft);display:grid;place-items:center;padding:0}
+.timer .tb:hover{background:#E6E8EC}
+.timer .tb svg{width:15px;height:15px;stroke:var(--ink2);fill:var(--ink2);stroke-width:1.5;stroke-linejoin:round}
+.timer .pulse{width:9px;height:9px;border-radius:50%;background:var(--red);flex:none;animation:blink 1.6s ease-in-out infinite}
+.timer.paused .pulse{background:var(--radio);animation:none}
+.timer.over{border-color:var(--red-line);background:var(--red-bg)}
+.timer.over .tm{color:var(--red-d);font-size:17px}
+.timer.over .pulse{display:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* этапы итоговой карточки (s46–s48) */
+.step-strip{position:absolute;right:80px;top:162px;display:flex;gap:6px;opacity:0;animation:rise .6s ease .18s forwards}
+.step-strip span{padding:6px 12px;border-radius:99px;background:rgba(255,255,255,.75);border:1px solid var(--line);font-size:13.5px;font-weight:600;color:var(--muted)}
+.step-strip span.active{background:var(--red);border-color:var(--red);color:#fff}
+.step-strip span.done{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
+.step-strip span.active.done{background:var(--ok);border-color:var(--ok);color:#fff}
+
+/* ---------- область задания ---------- */
+.content{flex:1;min-height:0;margin-top:30px;position:relative}
+.content.intro-anim > *{opacity:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+.content.intro-anim > *:nth-child(1){animation-delay:.25s}
+.content.intro-anim > *:nth-child(2){animation-delay:.37s}
+.content.swap > *{animation:rise .45s cubic-bezier(.2,.8,.2,1)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:26px 28px}
+.panel h2{font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1.15;margin-bottom:14px}
+.panel p{font-size:17px;line-height:1.42;color:var(--ink2)}
+.panel.flat{padding:22px 28px}.panel.flat h2{margin-bottom:8px}
+.context{background:rgba(255,255,255,.88)}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--red);margin-bottom:8px}
+.workspace{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.25fr);gap:32px;align-items:start}
+.workspace.even{grid-template-columns:1fr 1fr}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;margin-top:22px}
+
+.fact{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:center;padding:9px 0;border-top:1px solid #F0F1F4;font-size:17px;line-height:1.35}
+.fact:first-of-type{border-top:0;padding-top:0}
+.fact .number{width:30px;height:30px;border-radius:50%;border:2px solid var(--red);color:var(--red);display:grid;place-items:center;font-weight:700;font-size:14px}
+.note{font-size:15.5px;line-height:1.42;color:var(--ink2);background:#F5F6F8;border-radius:12px;padding:12px 16px;margin-top:16px}
+.note strong{color:var(--ink);font-weight:600}
+.note.alert{background:var(--red-bg);color:var(--red-d)}
+.question + .question{margin-top:16px}
+.question-title{font-weight:600;font-size:18px;line-height:1.3;margin-bottom:9px;color:var(--ink)}
+.label{font-weight:600;font-size:18px;line-height:1.3;margin:18px 0 10px;color:var(--ink)}
+
+/* сегменты — как в slide11 */
+.seg{display:flex;gap:6px;background:var(--soft);border-radius:12px;padding:4px}
+.seg .option{flex:1 1 auto;white-space:nowrap;border:0;background:transparent;border-radius:9px;padding:11px 8px;font-size:15.5px;font-weight:600;color:var(--ink2);line-height:1.15;
+  transition:background .2s,color .2s,box-shadow .2s}
+.seg .option:hover{color:var(--ink);background:rgba(255,255,255,.6)}
+.seg .option[aria-pressed=true]{background:#fff;color:var(--red-d);box-shadow:0 2px 8px rgba(27,32,51,.12)}
+.seg .option.good{background:var(--ok);color:#fff;box-shadow:none}
+.seg .option.bad{background:var(--red);color:#fff;box-shadow:none}
+.mk{font-size:14px;font-weight:600;margin-left:8px}
+.mk.ok{color:var(--ok)}.mk.no{color:var(--red-d)}
+
+/* карточки выбора */
+.choice{display:flex;width:100%;gap:14px;text-align:left;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 18px;align-items:flex-start;
+  color:var(--ink);transition:border-color .2s,background .2s,transform .15s,box-shadow .2s}
+.choice + .choice{margin-top:10px}
+.choice:hover{border-color:var(--red-line);transform:translateY(-1px);box-shadow:0 8px 20px rgba(27,32,51,.08)}
+.choice .mark{width:24px;height:24px;flex:none;border:2px solid var(--radio);border-radius:50%;margin-top:1px;display:grid;place-items:center;
+  color:#fff;font-size:14px;font-weight:700;transition:all .2s}
+.choice.multi .mark{border-radius:7px}
+.choice strong{display:block;font-size:18px;font-weight:600;line-height:1.25;margin-bottom:3px}
+.choice .desc{display:block;font-size:15px;line-height:1.38;color:var(--ink2)}
+.choice[aria-pressed=true]{border-color:var(--red);background:var(--red-bg)}
+.choice[aria-pressed=true] .mark{border:7px solid var(--red);background:#fff}
+.choice.multi[aria-pressed=true] .mark{border:0;background:var(--red)}
+.choice.multi[aria-pressed=true] .mark::after{content:'✓'}
+.choice.good{border-color:var(--ok);background:var(--ok-bg)}
+.choice.good .mark,.choice.multi.good .mark{border:0;background:var(--ok)}
+.choice.good .mark::after{content:'✓'}
+.choice.bad{border-color:var(--red);background:var(--red-bg)}
+.choice.bad .mark,.choice.multi.bad .mark{border:0;background:var(--red)}
+.choice.bad .mark::after{content:'×';font-size:18px;line-height:1}
+
+/* кнопки — как в примерах */
+.row-actions{display:flex;gap:14px;align-items:center;margin-top:20px}
+.btn{border:0;border-radius:12px;padding:14px 24px;background:var(--red);color:#fff;font-weight:600;font-size:17px;line-height:1.1;white-space:nowrap;
+  transition:transform .15s,background .2s,box-shadow .2s;box-shadow:0 6px 16px rgba(252,62,36,.3)}
+.btn:hover{background:var(--red-d);transform:translateY(-1px)}
+.btn:disabled{background:#F0B3A9;box-shadow:none;cursor:default;transform:none}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.btn.ghost:hover{background:var(--soft)}
+.hint{font-size:15px;color:var(--muted);line-height:1.35}
+.hint.ready{color:var(--ok);font-weight:600}
+.hint.no{color:var(--red-d)}
+
+/* s42 */
+.mail{background:#F5F6F8;border-radius:14px;padding:16px 18px}
+.mail dl{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 14px;font-size:16.5px;line-height:1.35}
+.mail dt{color:var(--muted)}
+.mail dd{margin:0;overflow-wrap:anywhere}
+.mail strong{font-family:var(--mono);font-size:15px;font-weight:600}
+.mutation .question-title{margin-top:18px}
+
+/* s46 */
+.category-card{padding:12px 0;border-top:1px solid #F0F1F4}
+.category-card:first-of-type{border-top:0;padding-top:0}
+.category-card h3{font-size:19px;font-weight:600;line-height:1.25;margin-bottom:5px}
+.category-card p{font-size:15.5px;line-height:1.36;margin-bottom:9px}
+
+/* ---------- разбор: открывается на месте задания ---------- */
+.review{height:100%;display:flex;flex-direction:column;padding:26px 30px 24px;border-top:4px solid var(--red)}
+.review.success{border-top-color:var(--ok)}
+.rv-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:18px}
+.rv-head h2{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--red-d)}
+.review.success .rv-head h2{color:var(--ok)}
+.rv-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.rv-grid.single{grid-template-columns:1fr}
+.rv-col{min-height:0;display:flex;flex-direction:column}
+.res{display:grid;grid-template-columns:32px 1fr;gap:13px 14px;align-items:start}
+.res .b{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:16px}
+.res .b.ok{background:var(--ok)}.res .b.no{background:var(--red)}
+.res .x{font-size:16.5px;line-height:1.4;color:var(--ink2);padding-top:5px}
+.res .x strong{color:var(--ink);font-weight:600}
+.rv-grid.single .res .x{font-size:18px}
+.rv-p{margin-top:14px;font-size:16px;line-height:1.42;color:var(--ink2)}
+.rv-col > .rv-p:first-child{margin-top:0}
+.rv-p strong{color:var(--ink)}
+.terminal{background:var(--ink);color:#E6E9EE;border-radius:14px;padding:16px 20px;font:14.5px/1.65 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.terminal .fail{color:#FF9C8A;font-weight:600}
+
+/* итоговая карточка (s48) — правая колонка разбора */
+.threat{background:#F7F8FA;border:1px solid var(--line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;min-height:0;flex:1}
+.threat h3{font-size:22px;font-weight:700;letter-spacing:-.01em;margin-bottom:4px}
+.threat > p{font-size:14.5px;color:var(--ink2);line-height:1.38}
+.threat dl{display:grid;grid-template-columns:130px 1fr;gap:7px 16px;font-size:14.5px;line-height:1.36;margin:12px 0 0}
+.threat dt{color:var(--muted)}
+.threat dd{margin:0}
+.threat textarea{flex:1;min-height:0;width:100%;margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:12.5px/1.5 var(--mono);color:var(--ink);resize:none;background:#fff}
+.threat .row-actions{margin-top:auto;padding-top:14px}
+.threat .btn{padding:11px 18px;font-size:15px}
+
+/* ---------- тост и конфетти — как в примерах ---------- */
+.toast{position:fixed;left:50%;top:18px;z-index:40;display:flex;gap:16px;align-items:center;width:min(92vw,640px);
+  padding:18px 24px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:0 24px 60px rgba(27,32,51,.22);
+  opacity:0;pointer-events:none;transform:translate(-50%,-20px) scale(.96);transition:opacity .35s,transform .45s cubic-bezier(.3,1.5,.5,1);
+  font-family:'Golos Text','Segoe UI',Roboto,Arial,sans-serif}
+.toast.show{opacity:1;pointer-events:auto;cursor:pointer;transform:translate(-50%,0)}
+.toast .em{font-size:clamp(30px,6vw,44px);line-height:1}
+.toast .tt{font-weight:700;font-size:clamp(20px,4vw,28px);letter-spacing:-.02em}
+.toast .ts{font-size:clamp(13px,2.6vw,15.5px);line-height:1.35;color:var(--ink2);margin-top:4px}
+.toast.win{border-color:var(--ok-line)}.toast.win .tt{color:var(--ok)}
+.toast.lose{border-color:var(--red-line)}.toast.lose .tt{color:var(--red-d)}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+.shake{animation:shake .45s}
+@media (prefers-reduced-motion:reduce){
+  .title,.sub,.timer,.step-strip,.content.intro-anim > *,.content.swap > *{animation-duration:.01s!important;animation-delay:0s!important}
+  .timer .pulse{animation:none}
+  .shake{animation:none}
+}
+
+/* ================= Тема 2.1: дополнения к общему стилю слайдов ================= */
+.tri{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:stretch;height:100%}
+.tri>.panel{display:flex;flex-direction:column;min-height:0;padding:24px 26px}
+.tri>.panel h2{font-size:23px;line-height:1.2;margin-bottom:14px}
+.tri>.panel .row-actions{margin-top:auto;padding-top:16px}
+.panel .claim-quote{font-size:16px;line-height:1.42;color:var(--ink);background:var(--red-bg);border-radius:12px;padding:11px 14px;margin-bottom:12px}
+.code{background:#16181D;border-radius:14px;padding:12px 16px;color:#E6E9EE}
+.code .cl{font-size:13px;color:#9AA0AA;margin:8px 0 4px}.code .cl:first-child{margin-top:0}
+.code .cl b{color:#FF9C8A;font-family:var(--mono);font-weight:600}
+.code pre{margin:0;font:15px/1.5 var(--mono);white-space:pre;color:#E6E9EE}
+.panel .foot{margin-top:auto;padding-top:12px;font-size:14px;line-height:1.4;color:var(--muted)}
+.qn{font:700 14px var(--mono);color:var(--red);margin-right:4px}
+.tri .question{margin-bottom:4px}
+.tri .question+.question{margin-top:18px}
+.tri .question-title{font-size:16.5px;line-height:1.35;margin-bottom:8px}
+.seg.wrap .option{white-space:normal;flex:1 1 0;padding:10px 6px;min-height:44px;font-size:14.5px}
+.tri .choice{padding:11px 14px}
+.tri .choice+.choice{margin-top:9px}
+.tri .choice strong{font-size:16.5px}
+.tri .choice .desc{font-size:14px;line-height:1.35}
+.panel h2 .mk{font-size:13.5px;vertical-align:3px}
+.state-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.state-grid div{background:#F5F6F8;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:4px}
+.state-grid span{font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--red)}
+.state-grid strong{font-size:44px;line-height:1;font-weight:700;letter-spacing:-.03em}
+.state-grid small{font-size:14px;color:var(--ink2)}
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sim-grid div{border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:5px;border:1px solid var(--line);background:#F7F8FA}
+.sim-grid div.good{background:var(--ok-bg);border-color:var(--ok-line)}
+.sim-grid div.bad{background:var(--red-bg);border-color:var(--red-line)}
+.sim-grid strong{font-size:28px;line-height:1.1;font-weight:700;letter-spacing:-.02em}
+.sim-grid .good strong{color:var(--ok)}.sim-grid .bad strong{color:var(--red-d)}
+.sim-grid span{font-size:15px;color:var(--ink2)}
+.panel .rv-limit{margin-top:16px;font-size:15.5px;line-height:1.45;color:var(--ink2);background:#F5F6F8;border-radius:12px;padding:12px 16px}
+.rv-col>.rv-limit:first-child{margin-top:0}
+.review .rv-head h2{color:var(--red-d)}.review.success .rv-head h2{color:var(--ok)}
+</style>
+</head>
+<body data-exercise="s15">
+<div id="app"></div>
+<noscript>Для работы интерактива включите JavaScript.</noscript>
+<script>
+/* Учебные сценарии: синтетические данные, без работы с настоящей БД и сетью. */
+(function (root) {
+  'use strict';
+  const claims = [
+    {id:'index', text:'В показанном запросе index нет фильтра по статусу поста.', expected:'yes', why:'В приведённом запросе нет условия WHERE. JOIN при этом возвращает только записи, для которых найден автор.'},
+    {id:'access', text:'Проверка get_post уже защищает все маршруты чтения.', expected:'unknown', why:'Фрагмент проверяет автора только при вызове get_post. Из него не следует, что каждый маршрут чтения вызывает эту функцию.'},
+    {id:'drafts', text:'В показанной схеме у поста уже есть статус черновика.', expected:'no', why:'В приведённом описании post указаны id, author_id, title и body. Столбца статуса в этом фрагменте нет.'}
+  ];
+  const tests = [
+    {id:'ui', title:'Проверить кнопку Edit', text:'У Бориса нет кнопки редактирования записи Алисы.'},
+    {id:'owner', title:'Проверить только автора', text:'Алиса создаёт и открывает собственный черновик.'},
+    {id:'access', title:'Проверить данные для трёх субъектов', text:'Алиса видит черновик; Борис и гость не получают его содержимое через список и все предусмотренные пути чтения.'}
+  ];
+  const migrations = [
+    {id:'reset', title:'Пересоздать таблицы', text:'Запустить инициализацию с DROP TABLE и создать новую пустую БД.'},
+    {id:'draft', title:'По умолчанию все черновики', text:'Добавить статус draft для всех строк и считать новую функцию готовой.'},
+    {id:'preserve', title:'Сохранить публичность и данные', text:'С резервной копией перенести старые записи как published; новые посты явно создавать как draft. Предусмотреть проверку и восстановление.'}
+  ];
+  const checks = [
+    {id:'new', title:'Проверить только новый черновик', text:'На пустой базе создать пост и проверить, что он не публичен.'},
+    {id:'count', title:'Сравнить количество записей', text:'Убедиться, что после миграции осталось 500 строк.'},
+    {id:'both', title:'Проверить данные до и после', text:'На непустой копии проверить сохранность и публичность старых постов, приватность нового черновика и восстановление при ошибке.'}
+  ];
+  function scoreEvidence(answers, test) {
+    const items=claims.map(c=>answers && answers[c.id]===c.expected);
+    const valid=items.every(Boolean) && test==='access';
+    return {items, test:test==='access', valid};
+  }
+  function simulateMigration(plan) {
+    switch(plan) {
+      case 'reset': return {oldRows:0, oldPublic:0, newPrivate:true, recoverable:false};
+      case 'draft': return {oldRows:500, oldPublic:0, newPrivate:true, recoverable:false};
+      case 'preserve': return {oldRows:500, oldPublic:500, newPrivate:true, recoverable:true};
+      default: return null;
+    }
+  }
+  function scoreMigration(plan, check) {
+    const state=simulateMigration(plan);
+    return {state, plan:plan==='preserve', check:check==='both', valid:plan==='preserve'&&check==='both'};
+  }
+  const api={claims,tests,migrations,checks,scoreEvidence,simulateMigration,scoreMigration};
+  if(typeof module!=='undefined' && module.exports) module.exports=api; else root.ExerciseModel=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+</script>
+<script>
+(() => {
+'use strict';
+/* Тема 2.1 (курс, часть 2). Логика заданий — в блоке ExerciseModel выше (assets/model.js без изменений).
+   Интерфейс — слайд 16:9 в стиле тем 1.3 и 1.8: без прокрутки, автотаймер, всплывающая обратная связь, разбор на месте задания.
+   Первая проверка участника отправляется в Cloudflare через ../training-api.js со slideId v2-s9 / v2-s15. */
+const M = window.ExerciseModel, root = document.getElementById('app'), id = document.body.dataset.exercise;
+const SLIDE_ID = id === 's09' ? 'v2-s9' : 'v2-s15';
+const TITLES = {
+  s09: ['Проверка вывода агента', 'Оцените утверждения по коду и выберите проверку приватности.'],
+  s15: ['Миграция без потери поведения', 'Выберите миграцию и проверку для старых записей и нового черновика.']
+};
+const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAACgCAYAAACLz2ctAAASs0lEQVR42u1de3BV1bn/rbV3IIcEYhIhBCwl8qY+UB5eXo4Dolx7vVgfMC1tpa1tqdw7nU7Hem2t9PFPfbSO1tqKvcI4OrcJU5kWlesDmAoFBdFiNQgCFwghDyCQ50lyzt7f/eNjZe+EhOQ8d3Ly/WbWJISz9z5nrd/5vvV963soXAJUVmap5csd8++zRCuGAhPaqk//Iqu83FJHDkPXnYU+eRK6qgrq3HnAtqArTgCtrYC2AKKO++mKCqhIOwT9GFrDHTcOZNm+tSPAsuGOHQtYFigUAo37PJwxxaCCQrgTJiIyaZITKhn3SBg4UmhZpXDdbjnUFar7v6qOh1cSTR0OrMnZv39e+992XJ+9exec9/dCV9dANTXKgglAw3Lgjrwc1jXXom3efGTddOMH4etm7aofav9urFKfduXUpW9GpAlQZUTWeaKlre/sbKF7VxEVFREBLgER4lsRaU1k20SWxb+boVT3w1wno3+PntbPv8aWxWuvtf/aCAEu5eYS/fsyav3rqy3niZaWEVkEKCLSfSLfLqJQ/f+d2Er3ryHS2iUgSoDj+okmhJLhJ+wFXrhMSOcCZ1y6625q2rl76y6i0CVJuNZHvuY9779Ji2+mjpvYthBORmyEtCyjMaN01VXU8vL/vGlIuLYrCYlI0dq1mojs+j17t9KMGURAO9m2TKaMxIZlM5dGj6amP67fup3IJkATkfIT0CIiffbIse20aLGQT0aSSWgxpyZPpvNbt20nIk1EVoeZDADVREvo/v/gjaSQT0ZqSBihJbfQmXB4SQf3iEhVEY1v37OvhYYMab9gdMiEyUgFCV1Sqj2y/sWWKqLxRKS0gkIW8EDWuudCaG/XUEqJZ0uQIigQafu/nw8NqT79gAKgoUDWhx8twmuvEpRSxoMtECQdrgsopfDeu2Tt3rUISpGuJVo+/J///ByqTrnQWvfJWy0QxHVkQoBSGpGIm7tnz+dqiZZrF5hm7diRA4CEfIJ0UdF6d3eOG45MU6frGqKXzf8Xyz5QDmgNUcGCVAc7wHXhjhyJ+v9929H20cOWPl3riUiBIPVqGLquDvahg5bWh49A19XJxAjSR0DLAhwH+rPPoK3aGla7liUSUJA+EgKwTtdAqzOn0RGvJRCkkYD65Eloq7JS9n+CYOyRmmpoVV8vBBQEIgFVfQM0wmGZEEEwCIehVUuLTIQgmD1gYwN0R2KRqGBButHcDC2zIAgKqqUFGpGozIQgOEtYNTTILAiCI6BMgUAIKBACCgRCQMGggy1TEBDiDf7IMH+tEBDBngaIBBQEE5ZeUMA/YyVtXR3gOEJAQZxqlwgoLgb27QMKCztC1PsSxo6WFmD2bODQoYzJ3xECBjbzNo9Yr8mwwGGxgoPeA/atamjG7huFgAIhoEAIKBAIAQVCQIFACCgYTAGpMgcCkYACIaBAIAQUCAEFAiGgQAgoEAgBBZkOmwZT7oX53f8308dHQuUHYUBqvAGWjtN7NLDWPKLR2Mhl23zv/hptbNtAVlZyI6KJOs/ToCFgsj+0UrwwhqBmgQoLgexsYMwYYORIoKiIJ725GaisBCoqgHPngKYm7z2Ze7lu/5GKREBtLRCJiARMSm7EN78JjBrVt7wIgMmgNbB5M/DJJ959gI7K63Ac/n3WLODGG4GbbgLmzwdyc/nv3SESYRLu3w+89x7wzjvA7t1e8o9l9Q8iDhkCPPggcOZM58+eYMsE1NcDzz8fjBSMXjnB63Kdrq6J3NadqKKC4sJ993ktQP3vOzubaPVqogMHiMLh7q913c6jO7S2Eu3cSbRqFVFu7sXvO5FO4gDR2LFEp0977ydoNDURhULp5wFAwarg2lpWh0ay9UVl2zZnh/mlHgDcdRfwk58A113X+fVGlXZngHSVBkbKDR3KUnP+fOCHPwSefhpYv57v539mUNuWZEliIwFragKT7na/2FD3lYBK8TWWxa9vbwfy8oDnngNWrPAMFKW818ayLTAq2v8dveoqYN064CtfYTJ+8EGwJLTtpHctSuo9B4UfsK2NSXvFFbwfXLGi8/7PL/ESMWbM3s9xeC+5fTtw993ec6S3yiCLBzQLPn48MG8eE2LhQo8QPRkZiVYxsCxWfSNGAH/6E3DfffxMLX78wZWYbgj26KOdLeNUEK8n/6DWbDHm5QG//jX/PSpljgdXZQT/6UU6pZDf+fvEEyyRn3gieMNEzoIDUMXmpCOIwkLGYn70UWDBAlHHEowQAAnNz3XrgPz89EtjIeAAUdXmSM4/kuHzMkd+06YBv/oVpNO8ELCzYeJ3QncdSnlum0TIaEj4ne8At96aHoPIuIWSOQL88tgZRzw/6VpbgbNnOejg+HE+d87PZ3fKZZehU3RNPMTx+wF/+lPgjTdSv5ipUPO5uRIPmDD8JNqxA3j9dfYTfvwxE9DvTikpYf/h4sXAnXdypIwhb6zOZdNpfu5cYNEiYNu25FvF5sTCcYB33wUaG5MjaYmY0DU13heHaBAFI+zfz4fhjpPYYbq5/pNPiFauJLLti4MAzOj6XmbMINq0qXOwQqyIRvnnxo2XDlqINxjBvKapiWjKlM6BGIkM/9ykMQDBP3RGSD6tgZde4tORl1/2ghbMfs//kY0aM///j38AX/oS7+Pa2/n1sapRIwVvvx245pq+n20nUtjSGFOJjO4iwsUIiUPtPv008LWvcVybOaONRnu2eI2RYohiWXy6cccdfI94VJHrchTNqlWpdcmYL5X5mawhBIyTfK+8Anz/+57hEatla1wzWVnAli3Ad78bf7g7ERcRT2UB8VQpQyFgHNbuZ58Ba9Z43+B4F52Io6JtGygtBX77Wy8SJhaLWCn2C44fn1o1LH7AfnIa8fOfA9XVyZM4Jpbw4Yc5VySW+xrpW1gIzJyJhLohCQH7ufTTGigvBzZtis9o6M0t0dDA+8p49oJE7OKRFM8MJaBZ1HXrODTfBAck2+e2YQNw+nRsqtio4QULhIAZGZBKxIQIh9nJnIpFNvvL2lpgz574nlFUBIRCfc/2Ewk4wKTf8eOsgpOpfruTZG+/Hd/R3LBhnC4g+8AMJeCHH3rBBql81r598ZFo2DDg8suFXRlrBVdXp+c59fWe0ROLGrZtJqFIwAwlYG1tahfXkK252TsZidVFNHSosCtjVXBDA9KW/tnaGr87RpBhBDQSb+TI9CzysGHA8OHxSVtRvRmsggsK0kP0UAjIyYmd6NGoVz5EJGEGErCkJD3PKSryXD2xSLRolEu9JRvZ2Rm3txyYKnjGDFaPqQ5/NycasaK5maOMe5KA8ahzk2+SnZ1RKn5gErC4mA/8/QWFkOTTEIBD9mNZbEO2cNhzFXVHwHDYC9nvq4o2rxMJGDABTbTzbbelJpbNhFBNnw5ce2180uboUQ7v6nqd34qPt8rpF76QUQbOwNsDGon3jW+wMZLs81YTwn///WyAmBCtWCSnOafu7jqlmHz+RKlYMHdu4EGkg5uAZj9UVAR861tegEKypJ/jAGPHAitXeuFZsZL373/vXXLW1cW3/Vi4kNNKM2QfOHBrw7gu8NBDXEDSqOVk1Zv5/e85bzgW6WqMhIoK4KOPeo/QbmyMrzBSSQknUbluoIUlhYAAJ5m/8AKrSlM+NxHyRaNcBfX222MvOGTU4oEDbAGbTLme3vunn8Z/wvLww5xkb9IIBrAkHNgh+a7LSUB//jPX64uncqlt86I6DvCDH3h1XrSOL4TL7P96+/IYNR0LAU1QxMSJwIsv8hfQ1Iz2ly4eQFlxcAZ6YrpJCt+zh5PM/c+wLB5ae8P/N/PanByi3/wm/uR0U3G/poaouPjS82mee/XVnGh+qWr9vX3m8nKiL36RaOjQwBLLB3aV/GRZxY7DknDnTs5oe+YZTirqy7XLlwM//jHvJeMtz2H2f6WlQFXVpUtzGIl39CgH1k6fHnttGpMmMG0a8OqrHLm9eTOr9YoKfg99LQ1i9tNVVYFY1sq5cgLpo0eS0/gkVvW5f3/yKgn473HmDDeb+ctfOHXz/HkeOTmsqouK2I+4ZAkweXJiBYrMnLW1sXO8vLz3bDpD0A0bgHvvjf/Z3X1h2trYxRNLHktTE/sXm5vTy4OMUMFdVaFRT36cP090/DjXY4lELr4mGVuA0tK+N7Mxr5k7l5+daLMaxyFqb4//Pq2tXkOeNNeJ0RnXGdNYn47jFQ/PywPGjeMwedvuXBfPWMBIID6xqQl47LHYXDZKcVuwt97yJHAiGiUrK/bKCaZ0SXu7WMEpIaKxcP2VUo3j2liMiap9ywJ+9jPOH4k1kd11gWefTZ4lKrVh+ikZ/U7mZE222be99Rbw5JOxV2cwR3yvvcbZd+YUBhIPiAFRHSHImsyGfHV1wOrViLu4oyk6+e1vA6dOpbaokRAwyVZ0UItl1G5jI/D1r7M7JdZCRl3vdewYt641e8NBRMKBmZR08iT7u9JNwmjUqx1zzz2sPhMtx+s4vFd94w0+BjQBEINEHesBVxMQAB55BJgzh/185gw3lUQ0Le1tmx3ct9zChDEWdbKI/dRT3AzR1KQx1roQsJ8hEuGI43vuAf7wB6/cbqJtF7ojniGAbXOUy223sfsk2T3iTHTLpk3AzTcD77/vWevGZZRBcYCZE4zwve8BP/oRn350Lc+bqMQz7pxIhC3dBQuYhKZ7ZipUvGXxM268kfeFe/deHGQQjXqkTFbjHQlG6APMKcZXv8rX27b3vidOJHr2WaKWlotPKqJR78Sh63Ac/v9I5OJTlOZmopdeIpo58+L3no75Mb/feSfRli1EVVXJOzXyB100NgZ2EjKwgxHMx7As4PBhDqNfv56jmW+9FZg6tfcz1u78gidOcGBBaalXoMjfpDCdDXcch+tgv/IKh1/NnMnn57NmAZMmcXT0iBF8yhNrA0fz2bWWTklJadUAsMrau5cDD2bMAJYtA66/nsPsi4v5yMqvshobmXCVlaz6tm3j1g2m/Ie/tVe6v1zGWW22G+fOsdPalI0bOpT3jVlZwJAhXlm4WDLtzGcLhwNJpLczqk2XnzDNzRz0aQI/8/O5frM5njNoaeEI5q7noeZMOWifnN8Q8rdncByOfGlr6/z6Y8cgDav7AxH9R3COw9Lj3DlcMkTKOIH9i97fthz+99VT1l0i8yYETPL+0B8z19Pi9FfCxVOBa4BZxJlLwO4WhaRQkPgBBQIhoEAIKBAIAQVCQIEQUCAQAgqEgAKBEFAgBBQIhIACIaBAIAQUZDTswCOZTQJRX8LCTSLQIKseIARECnu+xVJo27w2FJKVyxgCkhtcfF5pKZdN66sENDVZDh6U+L4MgaKsLIq7a49AkDABgeDESLwtBkxStkAIKBBA3DCCgUtAaS0vCJKAZBrfCQSBSEAtWlgge0DBoCWgOHMFge4BQ8OQKc2PBQMLlJ0NjZwcmQlBMMjJgSYhoADBNBynnBxoyhUCCoKSgLnQNCJP9oCCdItAAICblwdNo0YJAQVB8A9UNAraLS4WAgqC2QOOGQvtFo+R4E5BIAR0ikZD0/jxXGHdVGQXCFJNvgvlkGnCBOjo5CmOW1goaliQPgISwS0oQHTSZEdHp076pb76agCIyuwI0oSonjIVzsQJv9QKOODOnd/MtolIQEF65KB77TXN0cL8A7pQqbKWObMrEAppkOuKGhYgtRmRLgAdnjO3YpRSZRqAcm+4YRvm3KBARBIfKEAqO5wSEWbMUM7ChdtApDQRwS0seDy6ek0YWrsgSVISpMwAIQCu8+WVYXdiyeMEQGPjRp2v1LH6O/5tGRYvzoLrOL12mBQI4pF+juNg5qyspkU3LctX6hg2btQX1DJZRKQb/vradiq5kghoT0tfXBmDYzCX2mnMGGp6YcN2ItJEZPn2haQI0NuJ7JanntlKBQV8gWXJ5MlIDvmGj6DW/3po63YimwBNRJ2tXVpLmgB1gijU+uRTb1JJCREQJaVckYYy4iKeUi4BURpVRG0PPPjmCaIQAYrWrtU9WMhMwl1EoZbNr2+lBQuJAPcCER1Xa3NjmWAZnYdSRFqTy/xwCIgS4NLs2dS6fsPWXsnXlYRlRFZTzdmlbc8930Lz53c0PyUg0vFA2yayLI+UZsiCZC7JzNCa196y/WseucARopmzqO2xx1uaPv54aRmR1RP51KXO6wCgkmhqXmXVmpxdu+Y5W16/3jpwAO6hg9B1dWLZCTzBlXcZ1NQpcCZPgbX0Xz9onn3DrvCkkt+NVOrTrpxCrwUqL7yQysosxTf4T9g2zkYiK4bXN04Il5f/wj582FKHDsKqroaqrIQ+dQqqoQEggj5Z4VUzFWQGLAvu2CsAywKFsuF+fjxo9Gi4o4vhTp6M6ISJTmj6tEcaC/OPFGZllZr1p7IySy1f7vQU7vf//liOknJHkBsAAAAASUVORK5CYII=', TIMER = 120;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- состояние ---------- */
+let state = {index: null, access: null, drafts: null, test: null, plan: null, check: null, checked: false};
+let view = 'task', remaining = TIMER, running = false, tick = null, firstRender = true;
+
+const IC = {
+  fs:'<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  pause:'<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>',
+  play:'<path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/>'
+};
+const svg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg>`;
+
+/* ---------- каркас слайда ---------- */
+root.innerHTML = `<div id="stage">
+  <h1 class="title">${esc(TITLES[id][0])}</h1>
+  <img class="logo" src="${LOGO}" alt="">
+  <div class="timer" id="timer" role="timer"><span class="pulse" aria-hidden="true"></span><span class="tm" id="clock">2:00</span><button type="button" class="tb" data-action="timer" id="timerBtn"></button></div>
+  <p class="sub">${esc(TITLES[id][1])}</p>
+  <div class="content intro-anim" id="content"></div>
+  <button type="button" class="fs" data-action="fullscreen" title="На весь экран" aria-label="На весь экран">${svg('fs')}</button>
+</div>`;
+document.title = TITLES[id][0];
+const stage = document.getElementById('stage'), content = document.getElementById('content');
+function fit() {
+  const s = Math.min(innerWidth / 1600, innerHeight / 900);
+  stage.style.transform = `translate(${(innerWidth - 1600 * s) / 2}px, ${(innerHeight - 900 * s) / 2}px) scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+/* ---------- тост и конфетти, как в примерах ---------- */
+const toastEl = document.createElement('div');
+toastEl.className = 'toast'; toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite');
+toastEl.innerHTML = '<div class="em"></div><div><div class="tt"></div><div class="ts"></div></div>';
+document.body.appendChild(toastEl);
+toastEl.addEventListener('click', () => toastEl.classList.remove('show'));
+let toastTimer = null;
+function toast(kind, em, title, text, ms = 6500) {
+  toastEl.className = 'toast ' + kind;
+  toastEl.querySelector('.em').textContent = em;
+  toastEl.querySelector('.tt').textContent = title;
+  toastEl.querySelector('.ts').textContent = text;
+  requestAnimationFrame(() => toastEl.classList.add('show'));
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
+  if (kind === 'win') confetti();
+}
+const hideToast = () => toastEl.classList.remove('show');
+const cv = document.createElement('canvas'); cv.id = 'confetti'; document.body.appendChild(cv);
+function confetti() {
+  if (reduced) return;
+  const ctx = cv.getContext('2d'), dpr = devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cols = ['#FC3E24', '#16181D', '#FFB4A6', '#1E9E5A', '#C3C7CF', '#FFD166'];
+  const ps = Array.from({length: 160}, () => ({x: innerWidth / 2 + (Math.random() - .5) * innerWidth * .3, y: innerHeight * .2,
+    vx: (Math.random() - .5) * 14, vy: -Math.random() * 12 - 4, w: 6 + Math.random() * 7, h: 8 + Math.random() * 10,
+    r: Math.random() * 6, vr: (Math.random() - .5) * .35, c: cols[(Math.random() * cols.length) | 0]}));
+  const t0 = performance.now();
+  const frame = now => {
+    const el = now - t0; ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ps.forEach(p => { p.vy += .32; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.globalAlpha = Math.max(0, 1 - el / 2600);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2))); ctx.restore(); });
+    if (el < 2600) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  };
+  requestAnimationFrame(frame);
+}
+function shake(el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+document.addEventListener('animationend', e => { if (e.animationName === 'shake') e.target.classList.remove('shake'); });
+
+/* ---------- оценка (правила из model.js) ---------- */
+function score() {
+  if (id === 's09') {
+    const r = M.scoreEvidence({index: state.index, access: state.access, drafts: state.drafts}, state.test);
+    return {ok: r.valid, marks: {index: r.items[0], access: r.items[1], drafts: r.items[2], test: r.test}, r};
+  }
+  const r = M.scoreMigration(state.plan, state.check);
+  return {ok: r.valid, marks: {plan: r.plan, check: r.check}, r};
+}
+const ready = () => id === 's09' ? ['index', 'access', 'drafts', 'test'].every(k => state[k]) : !!(state.plan && state.check);
+let MK = {};
+
+/* ---------- элементы управления ---------- */
+function btn(label, action, extra = '', cls = 'btn') { return `<button type="button" class="${cls}" data-action="${action}" ${extra}>${label}</button>`; }
+function verdict(g) { const m = MK[g]; return m === undefined ? '' : m ? '<span class="mk ok">✓ верно</span>' : '<span class="mk no">✗ подумайте ещё</span>'; }
+function seg(group, options) {
+  const m = MK[group];
+  return `<div class="seg wrap" role="group">${options.map(([v, t]) => {
+    const sel = state[group] === v, cls = sel && m !== undefined ? (m ? ' good' : ' bad') : '';
+    return `<button type="button" class="option${cls}" data-group="${group}" data-value="${v}" aria-pressed="${sel}">${esc(t)}</button>`;
+  }).join('')}</div>`;
+}
+function choice(group, item) {
+  const sel = state[group] === item.id, m = MK[group];
+  const cls = sel && m !== undefined ? (m ? ' good' : ' bad') : '';
+  return `<button type="button" class="choice${cls}" data-group="${group}" data-value="${item.id}" aria-pressed="${sel}"><span class="mark" aria-hidden="true"></span><span><strong>${esc(item.title)}</strong><span class="desc">${esc(item.text)}</span></span></button>`;
+}
+function actions(label) {
+  if (state.checked) {
+    const ok = score().ok;
+    return `<div class="row-actions">${btn('Показать разбор', 'review')}<span class="hint ${ok ? 'ready' : 'no'}">${ok ? 'Решение обосновано.' : 'Исправьте красное и проверьте снова.'}</span></div>`;
+  }
+  const r = ready();
+  return `<div class="row-actions">${btn(label, 'check', r ? '' : 'disabled')}<span class="hint${r ? ' ready' : ''}">${r ? 'Можно проверять.' : (id === 's09' ? 'Выберите ответ в каждой группе.' : 'Нужен выбор в обоих вопросах.')}</span></div>`;
+}
+
+/* ---------- задания (содержание из исходного app.js) ---------- */
+function evidence() {
+  const opts = [['yes', 'Подтверждено'], ['no', 'Опровергнуто'], ['unknown', 'Недостаточно данных']];
+  return `<div class="tri">
+  <section class="panel context"><div class="eyebrow">Имеющиеся фрагменты</div><h2>Что видно в коде?</h2>
+    <p class="claim-quote">Агент заявил: «Проверка автора в <code>get_post</code> защищает любые приватные черновики».</p>
+    <div class="code"><div class="cl"><b>index</b> · полный запрос</div><pre>SELECT p.id, title, body, created,
+       author_id, username
+FROM post p JOIN user u
+  ON p.author_id = u.id
+ORDER BY created DESC;</pre><div class="cl"><b>get_post</b> · проверка автора</div><pre>if check_author and
+   post["author_id"] != g.user["id"]:
+    abort(403)</pre><div class="cl"><b>post</b> · все столбцы учебной схемы</div><pre>id, author_id, created, title, body</pre></div>
+    <p class="foot">Это выдержки для задания, а не полный код проекта. Других данных о маршрутах нет.</p></section>
+  <section class="panel"><h2>Оцените выводы</h2>${M.claims.map((c, i) => `<div class="question"><p class="question-title"><span class="qn">0${i + 1}</span> ${esc(c.text)}${verdict(c.id)}</p>${seg(c.id, opts)}</div>`).join('')}</section>
+  <section class="panel"><h2>Какая проверка нужна для будущих черновиков?${verdict('test')}</h2>${M.tests.map(t => choice('test', t)).join('')}${actions('Проверить решение')}</section></div>`;
+}
+function migration() {
+  return `<div class="tri">
+  <section class="panel context"><div class="eyebrow">Условие</div><h2>Старые посты исчезли из ленты</h2>
+    <p>В базе есть <strong>500 существующих публичных записей</strong>. Новые посты должны создаваться приватными черновиками.</p>
+    <div class="state-grid"><div><span>До миграции</span><strong>500</strong><small>постов доступны всем</small></div><div><span>После миграции</span><strong>?</strong><small>посты и доступность</small></div></div>
+    <p class="foot">Инициализация учебной базы удаляет таблицы. Восстановление данных и публичного поведения — часть задачи.</p></section>
+  <section class="panel"><h2>Как выполнить миграцию?${verdict('plan')}</h2>${M.migrations.map(t => choice('plan', t)).join('')}</section>
+  <section class="panel"><h2>Как проверить результат?${verdict('check')}</h2>${M.checks.map(t => choice('check', t)).join('')}${actions('Показать последствия')}</section></div>`;
+}
+
+/* ---------- разбор (тексты из исходного app.js) ---------- */
+function row(ok, heading, text) { return `<div class="b ${ok ? 'ok' : 'no'}" aria-label="${ok ? 'Верно' : 'Нужно уточнить'}">${ok ? '✓' : '×'}</div><div class="x"><strong>${esc(heading)}.</strong> ${esc(text)}</div>`; }
+function review() {
+  const {ok, r} = score();
+  let rows, side;
+  if (id === 's09') {
+    rows = M.claims.map((c, i) => row(r.items[i], ['Подтверждено', 'Недостаточно данных', 'Опровергнуто'][i], c.why)).join('')
+      + row(r.test, 'Проверка приватности', 'Проверять нужно содержимое ответа и предусмотренные пути чтения для автора, другого пользователя и гостя.');
+    side = '<p class="rv-limit">Проверка описывает будущую реализацию; она ещё не выполнена. Предъявленные фрагменты не доказывают отсутствие других маршрутов.</p>';
+  } else {
+    const s = r.state;
+    rows = row(r.plan, 'Миграция', 'Сохраните старые записи публичными; новые создавайте черновиками. Нужны резервная копия и проверенный способ восстановления.')
+      + row(r.check, 'Проверка', 'На непустой копии проверьте данные, публичность старых постов, приватность нового и восстановление при ошибке.');
+    side = `<div class="eyebrow">Учебный прогон · модель, не настоящая база</div><div class="sim-grid">
+      <div class="${s.oldRows === 500 ? 'good' : 'bad'}"><strong>${s.oldRows} из 500</strong><span>старых записей осталось</span></div>
+      <div class="${s.oldPublic === 500 ? 'good' : 'bad'}"><strong>${s.oldPublic} из 500</strong><span>старых записей публичны</span></div>
+      <div class="good"><strong>${s.newPrivate ? 'Приватен' : 'Неизвестно'}</strong><span>новый черновик</span></div>
+      <div class="${s.recoverable ? 'good' : 'bad'}"><strong>${s.recoverable ? 'Предусмотрено' : 'Не предусмотрено'}</strong><span>восстановление при ошибке</span></div></div>
+      <p class="rv-limit">Симуляция показывает последствия выбранных условий. Проверка настоящей миграции проводится отдельно.</p>`;
+  }
+  return `<section class="panel review${ok ? ' success' : ''}" aria-live="polite"><div class="rv-head"><div><div class="eyebrow">Разбор</div><h2>${ok ? 'Решение обосновано' : (id === 's15' ? 'Посмотрите на последствия' : 'Есть что уточнить')}</h2></div>${btn('← Вернуться к заданию', 'task', '', 'btn ghost')}</div>
+  <div class="rv-grid"><div class="rv-col"><div class="res">${rows}</div>${ok ? '' : '<p class="rv-p"><strong>Измените выбор и проверьте ещё раз.</strong></p>'}</div><div class="rv-col">${side}</div></div></section>`;
+}
+
+/* ---------- всплывающая обратная связь ---------- */
+function feedbackToast() {
+  const {ok, marks} = score();
+  if (id === 's09') {
+    if (ok) return toast('win', '🔥', 'Красавчик!', 'Выводы не выходят за пределы фрагментов, а проверка охватывает автора, другого пользователя и гостя.');
+    const n = Object.values(marks).filter(Boolean).length;
+    const hint = !marks.access ? 'Подсказка: фрагмент показывает get_post, но не все маршруты чтения.'
+      : !marks.drafts ? 'Подсказка: перечитайте список столбцов post в учебной схеме.'
+      : !marks.index ? 'Подсказка: есть ли в запросе index условие WHERE?'
+      : 'Подсказка: проверять нужно содержимое ответа для автора, другого пользователя и гостя.';
+    return toast('lose', '🤔', `Верно ${n} из 4`, hint, 5000);
+  }
+  if (ok) return toast('win', '🔥', 'Красавчик!', '500 старых постов сохранились и остались публичными, новый черновик приватен.');
+  if (state.plan === 'reset') return toast('lose', '😬', 'Данные потеряны!', 'Пересоздание таблиц удаляет все 500 старых постов.', 5000);
+  if (state.plan === 'draft') return toast('lose', '🤔', 'Старые посты скрыты', 'Общий draft сохранил записи, но убрал их из публичной ленты.', 5000);
+  return toast('lose', '🤔', 'Почти!', 'Миграция верная, но проверка недостаточна: нужна непустая копия и восстановление при ошибке.', 5000);
+}
+
+/* ---------- отрисовка ---------- */
+function render(swap = false) {
+  MK = state.checked ? score().marks : {};
+  content.innerHTML = view === 'review' && state.checked ? review() : (id === 's09' ? evidence() : migration());
+  if (!firstRender) content.classList.remove('intro-anim');
+  content.classList.toggle('swap', swap);
+  firstRender = false;
+  renderTimer();
+}
+
+/* ---------- таймер: стартует сам при открытии слайда ---------- */
+function clockText() { return `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`; }
+function renderTimer() {
+  const t = document.getElementById('timer'), over = remaining === 0;
+  t.classList.toggle('over', over); t.classList.toggle('paused', !running && !over);
+  document.getElementById('clock').textContent = over ? 'Время обсудить' : clockText();
+  const b = document.getElementById('timerBtn');
+  b.innerHTML = svg(running ? 'pause' : 'play');
+  const label = running ? 'Пауза' : (over ? 'Запустить таймер заново' : 'Продолжить');
+  b.title = label; b.setAttribute('aria-label', label);
+}
+function stopTimer() { running = false; clearInterval(tick); tick = null; renderTimer(); }
+function startTimer() {
+  if (running) return;
+  if (remaining === 0) remaining = TIMER;
+  running = true;
+  tick = setInterval(() => { remaining = Math.max(0, remaining - 1); if (remaining === 0) stopTimer(); else renderTimer(); }, 1000);
+  renderTimer();
+}
+
+/* ---------- ответ для Cloudflare: только выбор участника, оценку делает Worker ---------- */
+function answerPayload() {
+  return id === 's09'
+    ? {answers: {index: state.index, access: state.access, drafts: state.drafts, test: state.test}}
+    : {answers: {plan: state.plan, check: state.check}};
+}
+
+/* ---------- события ---------- */
+root.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.group) {
+    state[b.dataset.group] = b.dataset.value; state.checked = false; view = 'task'; hideToast(); render();
+    root.querySelector(`[data-group="${b.dataset.group}"][data-value="${b.dataset.value}"]`)?.focus({preventScroll: true});
+    return;
+  }
+  switch (b.dataset.action) {
+    case 'check':
+      if (!ready()) return;
+      // Первая проверка уходит в Cloudflare; повторные проверки и перезагрузка страницы статистику не меняют
+      if (window.TrainingAPI) window.TrainingAPI.submit(SLIDE_ID, 'main', answerPayload());
+      stopTimer(); state.checked = true; render();
+      feedbackToast();
+      root.querySelectorAll('.option.bad, .choice.bad').forEach(x => { const p = x.closest('.question, .panel'); if (p) shake(p); });
+      break;
+    case 'review': view = 'review'; render(true); break;
+    case 'task': view = 'task'; render(true); break;
+    case 'timer': if (running) stopTimer(); else startTimer(); break;
+    case 'fullscreen': {
+      const d = document.documentElement;
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (d.requestFullscreen && document.fullscreenEnabled) d.requestFullscreen().catch(() => open(location.href, '_blank'));
+      else open(location.href, '_blank');
+      break;
+    }
+  }
+});
+
+render();
+startTimer();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+})();
+</script>
+<!-- общий модуль статистики лежит уровнем выше: training/training-api.js -->
+<script src="../training-api.js"></script>
+</body>
+</html>
